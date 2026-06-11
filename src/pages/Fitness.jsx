@@ -107,12 +107,12 @@ function Overview() {
   return (
     <div>
       {/* Hero banner */}
-      <div style={{ background: 'linear-gradient(135deg, #2c2420 0%, #5a3530 50%, #9e6b7a 100%)', borderRadius: 12, padding: '28px 32px', marginBottom: 24, color: 'white' }}>
-        <div style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(232,196,184,0.8)', marginBottom: 8 }}>
+      <div style={{ background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 60%, #FFF5F7 100%)', borderRadius: 16, padding: '24px 30px', marginBottom: 24, border: '1px solid var(--pink-border)', boxShadow: '0 2px 16px rgba(232,84,122,0.07)' }}>
+        <div style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
           Postpartum Transformation — 6–8 Week Plan
         </div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: 4, color: 'white' }}>Strong, Toned &amp; Confident 🌸</h1>
-        <div style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)' }}>Glute &amp; Body Recomposition · 5×/week · −18.8 lbs goal</div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 4, color: 'var(--pink)' }}>Strong, Toned &amp; Confident 🌸</h1>
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Glute &amp; Body Recomposition · 5×/week · −18.8 lbs goal</div>
       </div>
 
       {/* Body comp stats */}
@@ -145,12 +145,12 @@ function Overview() {
           <div className="card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
               {[
-                { val: '1,400', unit: 'cal',  label: 'Calories',  note: '~500 deficit from TDEE', bg: 'linear-gradient(135deg,#9e6b7a,#c9897a)', light: false },
-                { val: '145',   unit: 'g',    label: 'Protein',   note: '~1.7g per lb lean mass', bg: 'linear-gradient(135deg,#5a3530,#9e6b7a)', light: false },
-                { val: '130',   unit: 'g',    label: 'Carbs',     note: 'Timed around workouts',  bg: 'linear-gradient(135deg,#c9897a,#e8c4b8)', light: true  },
-                { val: '42',    unit: 'g',    label: 'Fat',       note: 'Avocado, olive oil, nuts',bg: 'linear-gradient(135deg,#8fad8e,#d4e6d3)', light: true  },
+                { val: '1,400', unit: 'cal',  label: 'Calories',  note: '~500 deficit from TDEE', bg: '#FCE4EC', border:'#F4A0B5', color:'#C73D63' },
+                { val: '145',   unit: 'g',    label: 'Protein',   note: '~1.7g per lb lean mass', bg: '#E3F2FD', border:'#BBDEFB', color:'#1565C0' },
+                { val: '130',   unit: 'g',    label: 'Carbs',     note: 'Timed around workouts',  bg: '#FFF3E0', border:'#FFD9A0', color:'#B45309' },
+                { val: '42',    unit: 'g',    label: 'Fat',       note: 'Avocado, olive oil, nuts',bg: '#F3E8FF', border:'#D9B8FF', color:'#7C3AED' },
               ].map(m => (
-                <div key={m.label} style={{ background: m.bg, borderRadius: 10, padding: '16px 14px', textAlign: 'center', color: m.light ? '#2c2420' : 'white' }}>
+                <div key={m.label} style={{ background: m.bg, border: `1.5px solid ${m.border}`, borderRadius: 12, padding: '16px 14px', textAlign: 'center', color: m.color }}>
                   <div style={{ fontSize: '1.7rem', fontWeight: 'bold', lineHeight: 1 }}>{m.val}<span style={{ fontSize: '0.9rem', fontWeight: 400 }}>{m.unit}</span></div>
                   <div style={{ fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4, opacity: 0.85 }}>{m.label}</div>
                   <div style={{ fontSize: '0.68rem', opacity: 0.65, marginTop: 2 }}>{m.note}</div>
@@ -251,7 +251,7 @@ function WorkoutPlanTab() {
                     <div key={i} style={{ padding: '12px 16px', background: 'var(--surface-hover)', borderRadius: 8, border: `1px solid ${d.border}` }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: ex.tip ? 6 : 0 }}>
                         <div style={{ fontWeight: 'bold', fontSize: '0.875rem' }}>{ex.name}</div>
-                        <span style={{ background: '#2c2420', color: 'white', padding: '2px 10px', borderRadius: 20, fontSize: '0.68rem', flexShrink: 0 }}>{ex.sets}</span>
+                        <span style={{ background: 'var(--pink-light)', color: 'var(--pink-text)', border: '1px solid var(--pink-border)', padding: '2px 10px', borderRadius: 20, fontSize: '0.68rem', flexShrink: 0 }}>{ex.sets}</span>
                       </div>
                       {ex.tip && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6, margin: 0 }}>{ex.tip}</p>}
                     </div>

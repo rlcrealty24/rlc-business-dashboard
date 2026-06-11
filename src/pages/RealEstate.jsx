@@ -40,18 +40,18 @@ function WholesaleTracker() {
 
       {/* Summary */}
       <div className="metrics-grid" style={{ marginBottom:24 }}>
-        <div className="metric-card"><div className="metric-label">Total Deals</div><div className="metric-value">{deals.length}</div></div>
-        <div className="metric-card">
+        <div className="metric-card metric-card-blue"><div className="metric-label">Total Deals</div><div className="metric-value">{deals.length}</div></div>
+        <div className="metric-card metric-card-income">
           <div className="metric-label">Closed / Assigned</div>
           <div className="metric-value text-green">{deals.filter(d=>d.status==='Closed').length}</div>
         </div>
-        <div className="metric-card">
+        <div className="metric-card metric-card-income">
           <div className="metric-label">Assign Fees Earned</div>
           <div className="metric-value text-green">
             {formatCurrency(deals.filter(d=>d.status==='Closed').reduce((s,d)=>s+Number(d.assignFee||0),0),true)}
           </div>
         </div>
-        <div className="metric-card">
+        <div className="metric-card metric-card-pending">
           <div className="metric-label">Active Pipeline</div>
           <div className="metric-value">{deals.filter(d=>!['Closed','Dead'].includes(d.status)).length}</div>
         </div>
@@ -215,9 +215,9 @@ function FixFlip() {
       {!selected ? (
         <>
           <div className="metrics-grid" style={{marginBottom:24}}>
-            <div className="metric-card"><div className="metric-label">Total Projects</div><div className="metric-value">{projects.length}</div></div>
-            <div className="metric-card"><div className="metric-label">Active</div><div className="metric-value">{projects.filter(p=>p.status!=='Completed').length}</div></div>
-            <div className="metric-card">
+            <div className="metric-card metric-card-blue"><div className="metric-label">Total Projects</div><div className="metric-value">{projects.length}</div></div>
+            <div className="metric-card metric-card-pending"><div className="metric-label">Active</div><div className="metric-value">{projects.filter(p=>p.status!=='Completed').length}</div></div>
+            <div className="metric-card metric-card-expense">
               <div className="metric-label">Total Rehab Spent</div>
               <div className="metric-value">{formatCurrency(projects.reduce((s,p)=>s+Number(p.actualRehab||0),0),true)}</div>
             </div>

@@ -332,7 +332,9 @@ function TaskBoard() {
 
   const byStatus = TASK_STATUSES.reduce((acc,s)=>({...acc,[s]:shown.filter(t=>t.status===s)}),{})
 
-  const statusBg = { 'Done':'var(--green-bg)', 'In Progress':'var(--blue-bg)', 'To Do':'var(--surface-hover)', 'Backlog':'var(--surface-hover)' }
+  const statusBg       = { 'Done':'var(--green-bg)', 'In Progress':'var(--blue-bg)', 'To Do':'var(--pink-light)', 'Backlog':'var(--surface-hover)' }
+  const statusColor    = { 'Done':'var(--green)', 'In Progress':'var(--blue)', 'To Do':'var(--pink)', 'Backlog':'var(--text-muted)' }
+  const statusBorder   = { 'Done':'#86efac', 'In Progress':'#c7d2fe', 'To Do':'var(--pink-border)', 'Backlog':'var(--border)' }
 
   return (
     <div>
@@ -381,9 +383,9 @@ function TaskBoard() {
       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16}}>
         {TASK_STATUSES.map(status=>(
           <div key={status}>
-            <div style={{padding:'6px 12px',marginBottom:8,borderRadius:'var(--radius)',background:statusBg[status],border:'1px solid var(--border-light)',fontSize:'0.75rem',textTransform:'uppercase',letterSpacing:'0.07em',display:'flex',justifyContent:'space-between'}}>
-              <span>{status}</span>
-              <span style={{fontWeight:'bold'}}>{byStatus[status].length}</span>
+            <div style={{padding:'8px 14px',marginBottom:10,borderRadius:'var(--radius)',background:statusBg[status],border:`1px solid ${statusBorder[status]}`,fontSize:'0.74rem',textTransform:'uppercase',letterSpacing:'0.08em',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <span style={{fontWeight:600,color:statusColor[status]}}>{status}</span>
+              <span style={{background:'white',border:`1px solid ${statusBorder[status]}`,borderRadius:20,padding:'1px 8px',fontSize:'0.68rem',fontWeight:700,color:statusColor[status]}}>{byStatus[status].length}</span>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:8}}>
               {byStatus[status].map(t=>{

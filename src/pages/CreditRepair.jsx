@@ -55,7 +55,7 @@ function ScoreTracker() {
       {/* Current scores */}
       {latest && (
         <div className="metrics-grid mb-24" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
-          <div className="metric-card">
+          <div className={`metric-card ${avg>=750?'metric-card-income':avg>=580?'metric-card-pending':'metric-card-expense'}`}>
             <div className="metric-label">Average Score</div>
             <div className={`metric-value ${scoreColor(avg)}`}>{avg}</div>
             {change != null && (
@@ -69,13 +69,19 @@ function ScoreTracker() {
             const score = latest[key]
             const prevScore = prev?.[key]
             const diff = score && prevScore ? score - prevScore : null
+            const pct = score ? ((score - 300) / 550) * 100 : 0
             return (
-              <div key={b} className="metric-card">
+              <div key={b} className={`metric-card ${score>=750?'metric-card-income':score>=580?'metric-card-pending':'metric-card-expense'}`}>
                 <div className="metric-label">{b}</div>
                 <div className={`metric-value ${scoreColor(score)}`}>{score || '—'}</div>
                 {diff != null && (
                   <div className={`metric-change ${diff>0?'positive':diff<0?'negative':'neutral'}`}>
                     {diff>0?'+':''}{diff}
+                  </div>
+                )}
+                {score && (
+                  <div className="score-bar-track" style={{marginTop:8}}>
+                    <div className="score-bar-thumb" style={{left:`${pct}%`}} />
                   </div>
                 )}
                 <div className="mt-4"><span className={`badge ${scoreBadge(score)}`}>{scoreLabel(score)}</span></div>

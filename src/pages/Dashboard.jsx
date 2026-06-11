@@ -89,18 +89,7 @@ function PortalCard() {
   }
 
   return (
-    <div style={{
-      background: 'linear-gradient(135deg, var(--pink-light) 0%, #fff8fb 100%)',
-      border: '1px solid var(--pink-border)',
-      borderRadius: 'var(--radius)',
-      padding: '18px 20px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 16,
-      marginBottom: 24,
-      boxShadow: '0 1px 3px rgba(223,91,142,0.08)',
-    }}>
+    <div className="portal-bar">
       <div style={{ display:'flex', alignItems:'center', gap:12 }}>
         <span style={{ fontSize:'1.4rem' }}>🏠</span>
         <div>
@@ -756,21 +745,143 @@ function TodayMacrosWidget() {
           })
         )}
         {(totals.cal > 0 || burned > 0) && (
-          <div style={{ marginTop: 10, padding: '9px 12px', background: 'linear-gradient(135deg,#2c2420,#5a3530)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginTop: 10, padding: '9px 14px', background: 'var(--pink-light)', border: '1px solid var(--pink-border)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>🔥 Burned</div>
-              <div style={{ fontWeight: 'bold', color: '#fcd34d', fontSize: '0.9rem' }}>{burned ? Math.round(burned) : '—'}</div>
+              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>🔥 Burned</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--amber)', fontSize: '0.9rem' }}>{burned ? Math.round(burned) : '—'}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Remaining</div>
-              <div style={{ fontWeight: 'bold', color: remaining < 0 ? '#f87171' : '#86efac', fontSize: '0.9rem' }}>{Math.round(remaining)}</div>
+              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Remaining</div>
+              <div style={{ fontWeight: 'bold', color: remaining < 0 ? 'var(--red)' : 'var(--green)', fontSize: '0.9rem' }}>{Math.round(remaining)}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Net Cal</div>
-              <div style={{ fontWeight: 'bold', color: 'white', fontSize: '0.9rem' }}>{Math.round(net)}</div>
+              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Net Cal</div>
+              <div style={{ fontWeight: 'bold', color: 'var(--heading)', fontSize: '0.9rem' }}>{Math.round(net)}</div>
             </div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Finance Snapshot Widget ─────────────────────────────────────────────────
+function FinanceSnapshotWidget({ transactions }) {
+  const income  = transactions.filter(t=>t.type==='income').reduce((s,t)=>s+Number(t.amount),0)
+  const expense = transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+Number(t.amount),0)
+  const net     = income - expense
+
+  // Build last-6-month bar chart data
+  const months = []
+  for (let i = 5; i >= 0; i--) {
+    const d   = new Date()
+    d.setMonth(d.getMonth() - i)
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`
+    const lbl = d.toLocaleDateString('en-US',{month:'short'})
+    const amt = transactions
+      .filter(t=>t.type==='expense' && (t.date||'').startsWith(key))
+      .reduce((s,t)=>s+Number(t.amount),0)
+    months.push({ key, lbl, amt })
+  }
+  const maxAmt = Math.max(...months.map(m=>m.amt), 1)
+
+  return (
+    <div className="card">
+      <div className="card-header">
+        <h3>💰 Finance</h3>
+        <a href="/finance" style={{ fontSize:'0.72rem', color:'var(--pink)', textDecoration:'none', fontWeight:500 }}>View Finance →</a>
+      </div>
+      <div className="card-body" style={{ padding:'14px 18px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:16 }}>
+          <div style={{ textAlign:'center' }}>
+            <div className="metric-label">Income</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--green)' }}>{formatCurrency(income,true)}</div>
+          </div>
+          <div style={{ textAlign:'center', borderLeft:'1px solid var(--border-light)', borderRight:'1px solid var(--border-light)' }}>
+            <div className="metric-label">Expenses</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--pink)' }}>{formatCurrency(expense,true)}</div>
+          </div>
+          <div style={{ textAlign:'center' }}>
+            <div className="metric-label">Net</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color: net>=0?'var(--green)':'var(--red)' }}>{formatCurrency(net,true)}</div>
+          </div>
+        </div>
+        {/* 6-bar spending chart */}
+        <div style={{ display:'flex', alignItems:'flex-end', gap:6, height:56 }}>
+          {months.map(m => (
+            <div key={m.key} style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+              <div style={{
+                width:'100%', background: m.amt>0?'var(--pink)':'var(--border-light)',
+                borderRadius:'4px 4px 0 0',
+                height: `${Math.max(4, (m.amt/maxAmt)*44)}px`,
+                transition:'height 0.4s',
+                opacity: m.amt>0?1:0.4,
+              }} />
+              <div style={{ fontSize:'0.6rem', color:'var(--text-muted)', textAlign:'center' }}>{m.lbl}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Real Estate Summary Widget ───────────────────────────────────────────────
+function RealEstateWidget({ deals, fixFlip }) {
+  const activeW   = deals.filter(d=>!['Closed','Dead'].includes(d.status)).length
+  const pipeline  = deals.filter(d=>d.status==='Under Contract'||d.status==='Marketing').length
+  const projProfit = deals.reduce((s,d)=>s+Number(d.fee||d.assignmentFee||0),0)
+  return (
+    <div className="card" style={{ marginTop:18 }}>
+      <div className="card-header">
+        <h3>🏠 Real Estate</h3>
+        <a href="/real-estate" style={{ fontSize:'0.72rem', color:'var(--pink)', textDecoration:'none', fontWeight:500 }}>View deals →</a>
+      </div>
+      <div className="card-body" style={{ padding:'14px 18px' }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+          <div style={{ textAlign:'center' }}>
+            <div className="metric-label">Active Flips</div>
+            <div style={{ fontSize:'1.3rem', fontWeight:700, color:'var(--purple)' }}>{fixFlip.filter(p=>p.status!=='Completed').length}</div>
+          </div>
+          <div style={{ textAlign:'center', borderLeft:'1px solid var(--border-light)', borderRight:'1px solid var(--border-light)' }}>
+            <div className="metric-label">Wholesale</div>
+            <div style={{ fontSize:'1.3rem', fontWeight:700, color:'var(--blue)' }}>{activeW}</div>
+          </div>
+          <div style={{ textAlign:'center' }}>
+            <div className="metric-label">Proj. Profit</div>
+            <div style={{ fontSize:'1.1rem', fontWeight:700, color:'var(--green)' }}>{formatCurrency(projProfit,true)}</div>
+          </div>
+        </div>
+        {(deals.length===0 && fixFlip.length===0) && (
+          <div style={{ textAlign:'center', padding:'12px 0 4px', color:'var(--text-faint)', fontSize:'0.8rem' }}>
+            No active deals — <a href="/real-estate" style={{color:'var(--pink)'}}>add one →</a>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Quick Links Widget ───────────────────────────────────────────────────────
+function QuickLinksWidget() {
+  const links = [
+    { emoji:'💰', label:'Finance',       href:'/finance' },
+    { emoji:'🏠', label:'Real Estate',   href:'/real-estate' },
+    { emoji:'⭐', label:'Credit Repair', href:'/credit-repair' },
+    { emoji:'✅', label:'Tasks',         href:'/portal-project' },
+  ]
+  return (
+    <div className="card" style={{ marginTop:16 }}>
+      <div className="card-header"><h3>⚡ Quick Links</h3></div>
+      <div style={{ padding:'14px 16px' }}>
+        <div className="quick-links-grid">
+          {links.map(l => (
+            <a key={l.href} href={l.href} className="quick-link-card">
+              <span style={{ fontSize:'1.1rem' }}>{l.emoji}</span>
+              <span style={{ fontSize:'0.82rem' }}>{l.label}</span>
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -812,20 +923,42 @@ export default function Dashboard() {
   return (
     <div>
 
-      {/* ── Greeting Banner ── */}
+      {/* ── SECTION 1: Greeting Banner ── */}
       <div className="greeting-banner">
-        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-          {photo && (
-            <img src={photo} alt="Royanna" style={{
-              width:54, height:54, borderRadius:'50%', objectFit:'cover',
-              border:'3px solid #fff', boxShadow:'0 2px 12px rgba(223,91,142,0.25)',
-              flexShrink:0,
-            }} />
-          )}
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          {/* Profile photo / initials */}
+          <div style={{
+            width:52, height:52, borderRadius:'50%', overflow:'hidden', flexShrink:0,
+            background:'linear-gradient(135deg,#E8547A,#C73D63)',
+            display:'flex', alignItems:'center', justifyContent:'center',
+            border:'3px solid #fff', boxShadow:'0 2px 12px rgba(232,84,122,0.2)',
+          }}>
+            {photo
+              ? <img src={photo} alt="Profile" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+              : <span style={{ color:'#fff', fontWeight:700, fontSize:'1rem' }}>RC</span>
+            }
+          </div>
           <div>
             <h1>{greetEmoji} {greeting}, Royanna!</h1>
-            <div className="greeting-sub">
-              {weekday} — here's everything happening in your world today.
+            <div className="greeting-sub">{weekday} — here's your world at a glance.</div>
+            {/* Mini stat chips */}
+            <div className="banner-chips">
+              <div className="banner-chip">
+                <span className="chip-label">Net</span>
+                <span className={`chip-value ${netIncome>=0?'positive':'negative'}`}>{formatCurrency(netIncome,true)}</span>
+              </div>
+              <div className="banner-chip">
+                <span className="chip-label">Expenses</span>
+                <span className="chip-value negative">{formatCurrency(totalExpense,true)}</span>
+              </div>
+              <div className="banner-chip">
+                <span className="chip-label">Deals</span>
+                <span className="chip-value">{activeDeals}</span>
+              </div>
+              <div className="banner-chip">
+                <span className="chip-label">Score</span>
+                <span className={`chip-value ${avgScore?(avgScore>=700?'positive':avgScore>=600?'':'negative'):''}`}>{avgScore ?? '—'}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -835,11 +968,11 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Portal Quick Access */}
+      {/* ── SECTION 2: Portal Bar ── */}
       <PortalCard />
 
-      {/* Metrics */}
-      <div className="metrics-grid">
+      {/* ── SECTION 3: 5 Metric Cards ── */}
+      <div className="metrics-grid mb-20" style={{gridTemplateColumns:'repeat(5,1fr)'}}>
         <div className={`metric-card ${netIncome>=0?'metric-card-income':'metric-card-expense'}`}>
           <div className="metric-label">💰 Net Income</div>
           <div className={`metric-value ${netIncome>=0?'value-positive':'value-negative'}`}>{formatCurrency(netIncome,true)}</div>
@@ -853,33 +986,52 @@ export default function Dashboard() {
           <div className="metric-label">📉 Total Expenses</div>
           <div className="metric-value value-negative">{formatCurrency(totalExpense,true)}</div>
         </div>
-        <div className="metric-card metric-card-blue">
+        <div className="metric-card metric-card-pending">
           <div className="metric-label">⭐ Avg Credit Score</div>
-          <div className={`metric-value ${avgScore?(avgScore>=700?'value-positive':avgScore>=600?'':'value-negative'):''}`}>
-            {avgScore ?? '—'}
-          </div>
+          <div className={`metric-value ${avgScore?(avgScore>=700?'value-positive':avgScore>=600?'':'value-negative'):''}`}>{avgScore ?? '—'}</div>
           <div className="metric-change neutral">All 3 bureaus</div>
         </div>
         <div className="metric-card metric-card-net">
           <div className="metric-label">🏠 Active Deals</div>
           <div className="metric-value">{activeDeals}</div>
-          <div className="metric-change neutral">Wholesale + Fix &amp; Flip</div>
+          <div className="metric-change neutral">Wholesale + Flip</div>
         </div>
       </div>
 
-      {/* Fitness Widgets */}
-      <div className="section-grid" style={{ marginBottom: 24 }}>
-        <TodayWorkoutWidget />
-        <TodayMacrosWidget />
+      {/* ── SECTION 4: 3-column main content ── */}
+      <div className="three-col" style={{alignItems:'start'}}>
+
+        {/* LEFT: Workout + Calendar */}
+        <div>
+          <TodayWorkoutWidget />
+          <div style={{ marginTop:18 }}>
+            <CalendarWidget />
+          </div>
+        </div>
+
+        {/* MIDDLE: Finance snapshot + Real estate */}
+        <div>
+          <FinanceSnapshotWidget transactions={transactions} />
+          <RealEstateWidget deals={deals} fixFlip={fixFlip} />
+        </div>
+
+        {/* RIGHT: Weather + Macros + Quick links */}
+        <div>
+          <WeatherWidget />
+          <div style={{ marginTop:16 }}>
+            <TodayMacrosWidget />
+          </div>
+          <QuickLinksWidget />
+        </div>
+
       </div>
 
-      {/* Widgets */}
-      <div className="section-grid">
-        <WeatherWidget />
+      {/* ── SECTION 5: Bottom 2 columns ── */}
+      <div className="section-grid" style={{ marginBottom:0 }}>
         <TodoWidget />
+        <BillsCalendarWidget />
       </div>
-      <CalendarWidget />
-      <BillsCalendarWidget />
+
     </div>
   )
 }
