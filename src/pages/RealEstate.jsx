@@ -657,8 +657,8 @@ function FixFlip() {
             <div className="card-header flex-between">
               <h3>📄 Receipts</h3>
               <label className="btn btn-sm btn-primary" style={{ cursor: 'pointer' }}>
-                <input type="file" ref={fileRef} accept="image/*" onChange={handleReceipt} style={{ display: 'none' }} />
-                {receiptLoading ? '⏳ Reading…' : '+ Upload Receipt'}
+                <input type="file" ref={fileRef} accept="image/*,application/pdf" onChange={handleReceipt} style={{ display: 'none' }} />
+                {receiptLoading ? '⏳ Reading…' : '+ Upload Receipt (img or PDF)'}
               </label>
             </div>
             <div className="card-body">

@@ -45,6 +45,13 @@ ${rows}`,
 export async function readReceipt(base64Image, mimeType = 'image/jpeg') {
   const client = getClient()
 
+  const isPDF = mimeType === 'application/pdf'
+
+  // PDFs use the 'document' content block; images use 'image'
+  const fileBlock = isPDF
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Image } }
+    : { type: 'image',    source: { type: 'base64', media_type: mimeType,           data: base64Image } }
+
   const msg = await client.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 512,
@@ -52,10 +59,7 @@ export async function readReceipt(base64Image, mimeType = 'image/jpeg') {
       {
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: mimeType, data: base64Image },
-          },
+          fileBlock,
           {
             type: 'text',
             text: 'Extract receipt details. Return JSON with: { vendor, date, total, category, items: [{description, amount}] }. Use one of these categories: Materials & Supplies, Labor & Contractors, Tools & Equipment, Permits & Fees, Other.',
