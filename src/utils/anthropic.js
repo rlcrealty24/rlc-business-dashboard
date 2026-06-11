@@ -42,6 +42,67 @@ ${rows}`,
   return JSON.parse(jsonMatch[0])
 }
 
+export async function readCreditReport(base64Data, mimeType = 'application/pdf') {
+  const client = getClient()
+  const isPDF  = mimeType === 'application/pdf'
+
+  const fileBlock = isPDF
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64Data } }
+    : { type: 'image',    source: { type: 'base64', media_type: mimeType,           data: base64Data } }
+
+  const msg = await client.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 2048,
+    messages: [{
+      role: 'user',
+      content: [
+        fileBlock,
+        {
+          type: 'text',
+          text: `You are reading a credit report. Extract all available data and return ONLY valid JSON — no prose, no markdown, just the JSON object.
+
+Return this exact structure:
+{
+  "reportDate": "YYYY-MM-DD or empty string if not found",
+  "equifax":    score_number_or_null,
+  "experian":   score_number_or_null,
+  "transunion": score_number_or_null,
+  "negatives": [
+    {
+      "creditor":   "name of creditor or collection agency",
+      "type":       "one of: Collection, Late Payment, Charge-off, Bankruptcy, Repossession, Judgment, Tax Lien, Other",
+      "bureaus":    ["Equifax","Experian","TransUnion"] — only bureaus where this item appears,
+      "balance":    number_or_null,
+      "status":     "brief status description e.g. '120 days late', 'In collections', 'Charge-off'",
+      "dateOpened": "YYYY-MM-DD or empty string"
+    }
+  ],
+  "accounts": [
+    {
+      "name":    "account name",
+      "limit":   number_or_null,
+      "balance": number_or_null,
+      "type":    "Revolving or Installment or Mortgage or Other"
+    }
+  ]
+}
+
+Rules:
+- If only one bureau's score is visible, set the others to null
+- Include ALL negative/derogatory items — late payments, collections, charge-offs, public records
+- For accounts, only include revolving credit lines (credit cards, lines of credit) — skip loans/mortgages unless they have negative marks
+- Return ONLY the JSON object, absolutely nothing else`,
+        },
+      ],
+    }],
+  })
+
+  const text       = msg.content[0].text
+  const jsonMatch  = text.match(/\{[\s\S]*\}/)
+  if (!jsonMatch) throw new Error('Could not parse credit report — try uploading a clearer image or the full PDF')
+  return JSON.parse(jsonMatch[0])
+}
+
 export async function readReceipt(base64Image, mimeType = 'image/jpeg') {
   const client = getClient()
 

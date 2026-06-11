@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { formatDate, formatPercent, today, uid } from '../utils/formatters.js'
+import { readCreditReport } from '../utils/anthropic.js'
 
 const BUREAUS           = ['Equifax', 'Experian', 'TransUnion']
 const DISPUTE_STATUSES  = ['Open', 'In Progress', 'Resolved', 'Closed']
@@ -41,8 +42,19 @@ function statusBadge(s) {
 
 // ─── Score Tracker ─────────────────────────────────────────────────────────────
 function ScoreTracker({ cid }) {
-  const [scores, setScores] = useLocalStorage(`credit_${cid}_scores`, [])
-  const [form, setForm]     = useState({ date: today(), equifax: '', experian: '', transunion: '' })
+  const [scores,    setScores]    = useLocalStorage(`credit_${cid}_scores`,    [])
+  const [negatives, setNegatives] = useLocalStorage(`credit_${cid}_negatives`, [])
+  const [cards,     setCards]     = useLocalStorage(`credit_${cid}_cards`,     [])
+  const [form,      setForm]      = useState({ date: today(), equifax: '', experian: '', transunion: '' })
+
+  // ── Report upload state ──
+  const [reportLoading, setReportLoading] = useState(false)
+  const [reportError,   setReportError]   = useState('')
+  const [preview,       setPreview]       = useState(null)   // extracted data before confirming
+  const [importNegs,    setImportNegs]    = useState(true)
+  const [importAccts,   setImportAccts]   = useState(true)
+  const [previewScores, setPreviewScores] = useState({ equifax: '', experian: '', transunion: '', date: '' })
+  const fileRef = useRef(null)
 
   function save(e) {
     e.preventDefault()
@@ -50,16 +62,203 @@ function ScoreTracker({ cid }) {
     setForm({ date: today(), equifax: '', experian: '', transunion: '' })
   }
 
-  const sorted   = [...scores].sort((a, b) => b.date.localeCompare(a.date))
-  const latest   = sorted[0]
-  const prev     = sorted[1]
-  const avg      = latest ? Math.round((latest.equifax + latest.experian + latest.transunion) / 3) : null
-  const prevAvg  = prev   ? Math.round((prev.equifax + prev.experian + prev.transunion) / 3) : null
-  const change   = avg && prevAvg ? avg - prevAvg : null
+  async function handleReportUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setReportLoading(true)
+    setReportError('')
+    setPreview(null)
+    const reader = new FileReader()
+    reader.onload = async ev => {
+      try {
+        const base64 = ev.target.result.split(',')[1]
+        const data   = await readCreditReport(base64, file.type)
+        setPreview(data)
+        setPreviewScores({
+          equifax:    data.equifax    ? String(data.equifax)    : '',
+          experian:   data.experian   ? String(data.experian)   : '',
+          transunion: data.transunion ? String(data.transunion) : '',
+          date:       data.reportDate || today(),
+        })
+        setImportNegs(true)
+        setImportAccts(true)
+      } catch (err) {
+        setReportError(err.message)
+      }
+      setReportLoading(false)
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
+
+  function confirmImport() {
+    // Save scores if any bureau score present
+    const eq = Number(previewScores.equifax)
+    const ex = Number(previewScores.experian)
+    const tu = Number(previewScores.transunion)
+    if (eq || ex || tu) {
+      setScores(prev => [...prev, {
+        id: uid(),
+        date:       previewScores.date || today(),
+        equifax:    eq || 0,
+        experian:   ex || 0,
+        transunion: tu || 0,
+      }])
+    }
+    // Import negative accounts
+    if (importNegs && preview?.negatives?.length) {
+      const newNegs = preview.negatives.map(n => ({
+        id: uid(), addedAt: today(),
+        creditor:   n.creditor   || '',
+        type:       NEGATIVE_TYPES.includes(n.type) ? n.type : 'Other',
+        bureaus:    Array.isArray(n.bureaus) ? n.bureaus : [],
+        balance:    n.balance != null ? String(n.balance) : '',
+        status:     n.status     || '',
+        dateOpened: n.dateOpened || '',
+        notes:      'Imported from credit report',
+      }))
+      setNegatives(prev => [...prev, ...newNegs])
+    }
+    // Import revolving accounts for utilization
+    if (importAccts && preview?.accounts?.length) {
+      const newCards = preview.accounts
+        .filter(a => a.type === 'Revolving' && a.limit)
+        .map(a => ({
+          id: uid(),
+          name:    a.name    || 'Unknown',
+          balance: Number(a.balance) || 0,
+          limit:   Number(a.limit)   || 0,
+          bureau:  '',
+        }))
+      if (newCards.length) setCards(prev => [...prev, ...newCards])
+    }
+    setPreview(null)
+  }
+
+  const sorted  = [...scores].sort((a, b) => b.date.localeCompare(a.date))
+  const latest  = sorted[0]
+  const prev    = sorted[1]
+  const avg     = latest   ? Math.round((latest.equifax + latest.experian + latest.transunion) / 3) : null
+  const prevAvg = prev     ? Math.round((prev.equifax + prev.experian + prev.transunion) / 3)       : null
+  const change  = avg && prevAvg ? avg - prevAvg : null
 
   return (
     <div>
-      <h2 className="mb-16">Credit Score Tracker</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2>Credit Score Tracker</h2>
+        <label
+          className="btn btn-primary btn-sm"
+          style={{ cursor: reportLoading ? 'wait' : 'pointer', gap: 6 }}
+          title="Upload a credit report PDF or image — AI will extract scores and negative accounts"
+        >
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/pdf,image/*"
+            onChange={handleReportUpload}
+            style={{ display: 'none' }}
+            disabled={reportLoading}
+          />
+          {reportLoading ? '⏳ Reading report…' : '📄 Upload Credit Report'}
+        </label>
+      </div>
+
+      {/* ── Report upload error ── */}
+      {reportError && (
+        <div style={{ background: 'var(--red-bg)', border: '1px solid #fca5a5', borderRadius: 'var(--radius)', padding: '12px 16px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--red)', marginBottom: 4, fontSize: '0.875rem' }}>Couldn't read report</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{reportError}</div>
+          </div>
+          <button onClick={() => setReportError('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: 1, padding: 0 }}>×</button>
+        </div>
+      )}
+
+      {/* ── Report preview / confirm modal ── */}
+      {preview && (
+        <div style={{
+          background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 100%)',
+          border: '1px solid var(--pink-border)',
+          borderLeft: '4px solid var(--pink)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '20px 24px',
+          marginBottom: 24,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+            <div>
+              <div style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--pink-text)', fontWeight: 700, marginBottom: 4 }}>✅ Report Scanned — Review &amp; Confirm</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>AI extracted the data below. Edit any field before saving.</div>
+            </div>
+            <button onClick={() => setPreview(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+
+          {/* Editable score fields */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+            <div className="form-group">
+              <label>Report Date</label>
+              <input type="date" value={previewScores.date} onChange={e => setPreviewScores({ ...previewScores, date: e.target.value })} style={{ background: '#fff' }} />
+            </div>
+            {[
+              { key: 'equifax',    label: 'Equifax' },
+              { key: 'experian',   label: 'Experian' },
+              { key: 'transunion', label: 'TransUnion' },
+            ].map(b => (
+              <div key={b.key} className="form-group">
+                <label>{b.label}</label>
+                <input
+                  type="number" min="300" max="850"
+                  placeholder="not found"
+                  value={previewScores[b.key]}
+                  onChange={e => setPreviewScores({ ...previewScores, [b.key]: e.target.value })}
+                  style={{ background: '#fff', fontWeight: previewScores[b.key] ? 700 : 400 }}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* What else was found */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+            {preview.negatives?.length > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: '#fff', border: '1px solid var(--pink-border)', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: '0.83rem' }}>
+                <input type="checkbox" checked={importNegs} onChange={e => setImportNegs(e.target.checked)} style={{ accentColor: 'var(--pink)' }} />
+                <span>Import <strong>{preview.negatives.length}</strong> negative item{preview.negatives.length !== 1 ? 's' : ''} → Negatives tab</span>
+              </label>
+            )}
+            {preview.accounts?.filter(a => a.type === 'Revolving' && a.limit)?.length > 0 && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', background: '#fff', border: '1px solid var(--pink-border)', borderRadius: 'var(--radius)', cursor: 'pointer', fontSize: '0.83rem' }}>
+                <input type="checkbox" checked={importAccts} onChange={e => setImportAccts(e.target.checked)} style={{ accentColor: 'var(--pink)' }} />
+                <span>Import <strong>{preview.accounts.filter(a => a.type === 'Revolving' && a.limit).length}</strong> credit card{preview.accounts.filter(a => a.type === 'Revolving' && a.limit).length !== 1 ? 's' : ''} → Utilization tab</span>
+              </label>
+            )}
+          </div>
+
+          {/* Negative items preview list */}
+          {importNegs && preview.negatives?.length > 0 && (
+            <div style={{ background: '#fff', border: '1px solid var(--pink-border)', borderRadius: 'var(--radius)', marginBottom: 14, overflow: 'hidden' }}>
+              <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border-light)', fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', fontWeight: 600 }}>
+                Negative Items Found
+              </div>
+              {preview.negatives.map((n, i) => (
+                <div key={i} style={{ padding: '9px 14px', borderBottom: i < preview.negatives.length - 1 ? '1px solid var(--border-light)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: '0.83rem' }}>{n.creditor}</span>
+                    <span style={{ marginLeft: 8, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{n.type}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                    {n.balance != null && <span style={{ fontSize: '0.78rem', color: 'var(--red)', fontWeight: 600 }}>${Number(n.balance).toLocaleString()}</span>}
+                    {n.bureaus?.map(b => <span key={b} style={{ fontSize: '0.62rem', background: 'var(--blue-bg)', color: 'var(--blue)', border: '1px solid #c7d2fe', borderRadius: 4, padding: '1px 5px' }}>{b.slice(0, 2)}</span>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-primary" onClick={confirmImport}>✅ Save to Client Profile</button>
+            <button className="btn" onClick={() => setPreview(null)}>Discard</button>
+          </div>
+        </div>
+      )}
 
       {/* 3 bureau cards + avg */}
       {latest && (
@@ -96,9 +295,9 @@ function ScoreTracker({ cid }) {
         </div>
       )}
 
-      {/* Log new entry */}
+      {/* Manual log entry */}
       <div className="card mb-24">
-        <div className="card-header"><h3>Log New Scores</h3></div>
+        <div className="card-header"><h3>Log Scores Manually</h3></div>
         <div className="card-body">
           <form onSubmit={save}>
             <div className="form-row">
@@ -138,7 +337,7 @@ function ScoreTracker({ cid }) {
           </div>
         </div>
       )}
-      {scores.length === 0 && <div className="empty-state"><p>Log the first credit scores to get started</p></div>}
+      {scores.length === 0 && !preview && <div className="empty-state"><p>Upload a credit report above or manually log the first scores to get started</p></div>}
     </div>
   )
 }
