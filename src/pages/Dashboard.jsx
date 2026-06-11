@@ -840,27 +840,27 @@ export default function Dashboard() {
 
       {/* Metrics */}
       <div className="metrics-grid">
-        <div className="metric-card" style={{ borderTopColor: netIncome>=0?'var(--green)':'var(--red)' }}>
+        <div className={`metric-card ${netIncome>=0?'metric-card-income':'metric-card-expense'}`}>
           <div className="metric-label">💰 Net Income</div>
           <div className={`metric-value ${netIncome>=0?'value-positive':'value-negative'}`}>{formatCurrency(netIncome,true)}</div>
           <div className="metric-change neutral">{transactions.length} transactions</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor:'var(--green)' }}>
+        <div className="metric-card metric-card-income">
           <div className="metric-label">📈 Total Revenue</div>
           <div className="metric-value value-positive">{formatCurrency(totalIncome,true)}</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor:'var(--red)' }}>
+        <div className="metric-card metric-card-expense">
           <div className="metric-label">📉 Total Expenses</div>
           <div className="metric-value value-negative">{formatCurrency(totalExpense,true)}</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor:'var(--blue)' }}>
+        <div className="metric-card metric-card-blue">
           <div className="metric-label">⭐ Avg Credit Score</div>
           <div className={`metric-value ${avgScore?(avgScore>=700?'value-positive':avgScore>=600?'':'value-negative'):''}`}>
             {avgScore ?? '—'}
           </div>
           <div className="metric-change neutral">All 3 bureaus</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor:'var(--pink)' }}>
+        <div className="metric-card metric-card-net">
           <div className="metric-label">🏠 Active Deals</div>
           <div className="metric-value">{activeDeals}</div>
           <div className="metric-change neutral">Wholesale + Fix &amp; Flip</div>

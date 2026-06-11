@@ -117,21 +117,21 @@ function Overview() {
 
       {/* Body comp stats */}
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginBottom: 24 }}>
-        <div className="metric-card" style={{ borderTopColor: '#9e6b7a' }}>
+        <div className="metric-card metric-card-expense">
           <div className="metric-label">🏁 Start Weight</div>
           <div className="metric-value">148.8 <span style={{ fontSize: '1rem' }}>lb</span></div>
         </div>
-        <div className="metric-card" style={{ borderTopColor: 'var(--green)' }}>
+        <div className="metric-card metric-card-income">
           <div className="metric-label">🎯 Goal Weight</div>
           <div className="metric-value text-green">130 <span style={{ fontSize: '1rem' }}>lb</span></div>
           <div className="metric-change neutral">−18.8 lbs total</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor: 'var(--amber)' }}>
+        <div className="metric-card metric-card-pending">
           <div className="metric-label">📊 Body Fat</div>
           <div className="metric-value">42.6<span style={{ fontSize: '1rem' }}>%</span></div>
           <div className="metric-change neutral">63.4 lb fat mass</div>
         </div>
-        <div className="metric-card" style={{ borderTopColor: 'var(--blue)' }}>
+        <div className="metric-card metric-card-blue">
           <div className="metric-label">💪 Muscle Mass</div>
           <div className="metric-value">46.5 <span style={{ fontSize: '1rem' }}>lb</span></div>
           <div className="metric-change neutral">Goal: preserve + grow</div>
@@ -870,12 +870,12 @@ function DailyLogTab({ logs, setLogs }) {
 
   // Macro config with fiber/sugar targets
   const NUTRIENT_TARGETS = [
-    { key: 'cal',     label: 'Calories', target: MACRO_TARGETS.cal,     unit: '',  color: 'var(--pink)',      bgColor: '#fce4ef' },
-    { key: 'protein', label: 'Protein',  target: MACRO_TARGETS.protein, unit: 'g', color: 'var(--blue)',      bgColor: '#eff6ff' },
-    { key: 'carbs',   label: 'Carbs',    target: MACRO_TARGETS.carbs,   unit: 'g', color: 'var(--amber)',     bgColor: '#fffbeb' },
-    { key: 'fat',     label: 'Fat',      target: MACRO_TARGETS.fat,     unit: 'g', color: 'var(--green)',     bgColor: '#f0fdf4' },
-    { key: 'fiber',   label: 'Fiber',    target: 25,                    unit: 'g', color: '#8b5cf6',          bgColor: '#f5f3ff' },
-    { key: 'sugar',   label: 'Sugar',    target: 50,                    unit: 'g', color: '#ec4899',          bgColor: '#fdf2f8' },
+    { key: 'cal',     label: 'Calories', target: MACRO_TARGETS.cal,     unit: '',  color: '#E8547A',     bgColor: '#FCE4EC' },
+    { key: 'protein', label: 'Protein',  target: MACRO_TARGETS.protein, unit: 'g', color: '#2B80C4',     bgColor: '#E8F4FD' },
+    { key: 'carbs',   label: 'Carbs',    target: MACRO_TARGETS.carbs,   unit: 'g', color: '#D4820A',     bgColor: '#FFF3E0' },
+    { key: 'fat',     label: 'Fat',      target: MACRO_TARGETS.fat,     unit: 'g', color: '#7C3AED',     bgColor: '#F3E8FF' },
+    { key: 'fiber',   label: 'Fiber',    target: 25,                    unit: 'g', color: '#2D9E6B',     bgColor: '#E8F5E9' },
+    { key: 'sugar',   label: 'Sugar',    target: 50,                    unit: 'g', color: '#C73D63',     bgColor: '#FCE4EC' },
   ]
 
   return (

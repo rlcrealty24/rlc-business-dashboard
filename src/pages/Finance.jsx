@@ -355,14 +355,14 @@ function Overview({ transactions, categories, accounts=[] }) {
     <div>
       <h2 className="mb-16">Overview</h2>
       <div className="metrics-grid mb-24" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
-        <div className="metric-card"><div className="metric-label">Income Received</div><div className="metric-value text-green">{formatCurrency(totalRec,true)}</div><div className="metric-change neutral">{incRec.length} entries</div></div>
-        <div className="metric-card" style={{borderColor:'var(--amber)',background:'var(--amber-bg)'}}>
+        <div className="metric-card metric-card-income"><div className="metric-label">Income Received</div><div className="metric-value text-green">{formatCurrency(totalRec,true)}</div><div className="metric-change neutral">{incRec.length} entries</div></div>
+        <div className="metric-card metric-card-pending">
           <div className="metric-label">Pending Income</div>
-          <div className="metric-value" style={{color:'var(--amber)'}}>{formatCurrency(totalPend,true)}</div>
+          <div className="metric-value text-amber">{formatCurrency(totalPend,true)}</div>
           <div className="metric-change neutral">{incPend.length} entries</div>
         </div>
-        <div className="metric-card"><div className="metric-label">Total Expenses</div><div className="metric-value text-red">{formatCurrency(totalExp,true)}</div><div className="metric-change neutral">{exps.length} entries</div></div>
-        <div className="metric-card" style={{borderColor:net>=0?'var(--green)':'var(--red)'}}>
+        <div className="metric-card metric-card-expense"><div className="metric-label">Total Expenses</div><div className="metric-value text-red">{formatCurrency(totalExp,true)}</div><div className="metric-change neutral">{exps.length} entries</div></div>
+        <div className="metric-card metric-card-net">
           <div className="metric-label">Net Income</div>
           <div className={`metric-value ${net>=0?'text-green':'text-red'}`}>{formatCurrency(net,true)}</div>
         </div>
@@ -570,17 +570,17 @@ function IncomeTab({ transactions, setTransactions, categories, accounts=[] }) {
       </div>
 
       <div className="metrics-grid mb-24" style={{gridTemplateColumns:'repeat(4,1fr)'}}>
-        <div className="metric-card"><div className="metric-label">Total Received</div><div className="metric-value text-green">{formatCurrency(received,true)}</div></div>
-        <div className="metric-card" style={{borderColor:'var(--amber)',background:'var(--amber-bg)'}}>
+        <div className="metric-card metric-card-income"><div className="metric-label">Total Received</div><div className="metric-value text-green">{formatCurrency(received,true)}</div></div>
+        <div className="metric-card metric-card-pending">
           <div className="metric-label">Pending / Expected</div>
-          <div className="metric-value" style={{color:'var(--amber)'}}>{formatCurrency(pending,true)}</div>
+          <div className="metric-value text-amber">{formatCurrency(pending,true)}</div>
         </div>
-        <div className="metric-card" style={{borderColor:'#7c3aed',background:'#f5f3ff'}}>
+        <div className="metric-card metric-card-net">
           <div className="metric-label">Refunds Received</div>
-          <div className="metric-value" style={{color:'#7c3aed'}}>{formatCurrency(totalRefunds,true)}</div>
+          <div className="metric-value" style={{color:'var(--purple)'}}>{formatCurrency(totalRefunds,true)}</div>
           <div className="metric-change neutral">{refunds.length} {refunds.length===1?'refund':'refunds'}</div>
         </div>
-        <div className="metric-card"><div className="metric-label">Total Pipeline</div><div className="metric-value text-green">{formatCurrency(received+pending+totalRefunds,true)}</div></div>
+        <div className="metric-card metric-card-income"><div className="metric-label">Total Pipeline</div><div className="metric-value text-green">{formatCurrency(received+pending+totalRefunds,true)}</div></div>
       </div>
 
       {/* Refund form */}
@@ -1173,24 +1173,24 @@ function AccountsTab({ accounts, setAccounts, transactions=[], setTransactions }
 
       {/* ── Summary metrics ──────────────────────────────────────── */}
       <div className="metrics-grid mb-24" style={{gridTemplateColumns:`repeat(${totalLimit>0?4:3},1fr)`}}>
-        <div className="metric-card">
+        <div className="metric-card metric-card-income">
           <div className="metric-label">Total Assets</div>
           <div className="metric-value text-green">{formatCurrency(totalAssets,true)}</div>
           <div className="metric-change neutral">{norm.filter(a=>!a.isLiability).length} accounts</div>
         </div>
-        <div className="metric-card" style={{borderColor:'var(--red)',background:'var(--red-bg)'}}>
+        <div className="metric-card metric-card-expense">
           <div className="metric-label">Total Liabilities</div>
           <div className="metric-value text-red">{formatCurrency(totalLiabs,true)}</div>
           <div className="metric-change neutral">{norm.filter(a=>a.isLiability).length} accounts</div>
         </div>
         {totalLimit>0 && (
-          <div className="metric-card" style={{borderColor:'var(--blue)',background:'var(--blue-bg)'}}>
+          <div className="metric-card metric-card-blue">
             <div className="metric-label">Available Credit</div>
             <div className="metric-value" style={{color:'var(--blue)'}}>{formatCurrency(Math.max(0,availCred),true)}</div>
             <div className="metric-change neutral">of {formatCurrency(totalLimit)} total limit</div>
           </div>
         )}
-        <div className="metric-card" style={{borderColor:netWorth>=0?'var(--green)':'var(--red)'}}>
+        <div className="metric-card metric-card-net">
           <div className="metric-label">Net Worth</div>
           <div className={`metric-value ${netWorth>=0?'text-green':'text-red'}`}>{formatCurrency(netWorth,true)}</div>
           {excludedBal>0 && <div className="metric-change neutral" style={{fontSize:'0.68rem'}}>+{formatCurrency(excludedBal)} excluded (escrow/held)</div>}
@@ -1549,10 +1549,10 @@ function TaxTab({ transactions }) {
     <div>
       <h2 className="mb-16">Tax Summary — {year}</h2>
       <div className="metrics-grid">
-        <div className="metric-card"><div className="metric-label">YTD Net Income</div><div className={`metric-value ${net>=0?'text-green':'text-red'}`}>{formatCurrency(net,true)}</div></div>
-        <div className="metric-card"><div className="metric-label">Est. SE Tax (15.3%)</div><div className="metric-value">{formatCurrency(seTax,true)}</div><div className="metric-change neutral">on 92.35% of net</div></div>
-        <div className="metric-card"><div className="metric-label">Est. Federal ({(fRate*100).toFixed(0)}% bracket)</div><div className="metric-value">{formatCurrency(fedTax,true)}</div></div>
-        <div className="metric-card"><div className="metric-label">Est. Quarterly Payment</div><div className="metric-value text-red">{formatCurrency(qtrly,true)}</div></div>
+        <div className="metric-card metric-card-net"><div className="metric-label">YTD Net Income</div><div className={`metric-value ${net>=0?'text-green':'text-red'}`}>{formatCurrency(net,true)}</div></div>
+        <div className="metric-card metric-card-expense"><div className="metric-label">Est. SE Tax (15.3%)</div><div className="metric-value">{formatCurrency(seTax,true)}</div><div className="metric-change neutral">on 92.35% of net</div></div>
+        <div className="metric-card metric-card-pending"><div className="metric-label">Est. Federal ({(fRate*100).toFixed(0)}% bracket)</div><div className="metric-value">{formatCurrency(fedTax,true)}</div></div>
+        <div className="metric-card metric-card-expense"><div className="metric-label">Est. Quarterly Payment</div><div className="metric-value text-red">{formatCurrency(qtrly,true)}</div></div>
       </div>
       <div className="card mt-24">
         <div className="card-header"><h3>Quarterly Schedule</h3></div>
