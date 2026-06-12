@@ -180,8 +180,7 @@ function ScoreTracker({ cid }) {
   }
 
   const sorted  = [...scores].sort((a, b) => b.date.localeCompare(a.date))
-  const latest  = sorted[0]
-  const prev    = sorted[1]
+  const latest  = sorted[0]   // used for history table
 
   // Only average bureaus that actually have a score (ignore 0 / null)
   function calcAvg(entry) {
@@ -190,8 +189,28 @@ function ScoreTracker({ cid }) {
     return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
   }
 
-  const avg     = calcAvg(latest)
-  const prevAvg = calcAvg(prev)
+  // Build a "current" view using the most recent non-null score for each bureau
+  // This way uploading 3 separate single-bureau reports still fills all 3 cards
+  const current = { equifax: null, experian: null, transunion: null }
+  const currentPrev = { equifax: null, experian: null, transunion: null }
+  for (const entry of sorted) {
+    if (!current.equifax    && entry.equifax)    current.equifax    = entry.equifax
+    if (!current.experian   && entry.experian)   current.experian   = entry.experian
+    if (!current.transunion && entry.transunion) current.transunion = entry.transunion
+  }
+  // For each bureau, find the second-most-recent entry that has a score (for change calc)
+  for (const key of ['equifax','experian','transunion']) {
+    let found = 0
+    for (const entry of sorted) {
+      if (entry[key]) {
+        found++
+        if (found === 2) { currentPrev[key] = entry[key]; break }
+      }
+    }
+  }
+
+  const avg     = calcAvg(current)
+  const prevAvg = calcAvg(sorted[1])
   const change  = avg && prevAvg ? avg - prevAvg : null
 
   return (
@@ -313,11 +332,11 @@ function ScoreTracker({ cid }) {
       )}
 
       {/* 3 bureau cards + avg */}
-      {latest && (
+      {scores.length > 0 && (
         <div className="metrics-grid mb-24" style={{ gridTemplateColumns: 'repeat(4,1fr)' }}>
           <div className={`metric-card ${avg >= 750 ? 'metric-card-income' : avg >= 580 ? 'metric-card-pending' : 'metric-card-expense'}`}>
             <div className="metric-label">Average Score</div>
-            <div className={`metric-value ${scoreColor(avg)}`}>{avg}</div>
+            <div className={`metric-value ${scoreColor(avg)}`}>{avg || '—'}</div>
             {change != null && (
               <div className={`metric-change ${change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral'}`}>
                 {change > 0 ? '+' : ''}{change} from last entry
@@ -326,14 +345,14 @@ function ScoreTracker({ cid }) {
           </div>
           {BUREAUS.map(b => {
             const key   = b.toLowerCase()
-            const score = latest[key]
-            const prev2 = prev?.[key]
+            const score = current[key]
+            const prev2 = currentPrev[key]
             const diff  = score && prev2 ? score - prev2 : null
             const pct   = score ? ((score - 300) / 550) * 100 : 0
             return (
               <div key={b} className={`metric-card ${score >= 750 ? 'metric-card-income' : score >= 580 ? 'metric-card-pending' : 'metric-card-expense'}`}>
                 <div className="metric-label">{b}</div>
-                <div className={`metric-value ${scoreColor(score)}`}>{score || '—'}</div>
+                <div className={`metric-value ${scoreColor(score)}`}>{score || <span style={{color:'var(--text-faint)',fontSize:'1.2rem'}}>—</span>}</div>
                 {diff != null && (
                   <div className={`metric-change ${diff > 0 ? 'positive' : diff < 0 ? 'negative' : 'neutral'}`}>
                     {diff > 0 ? '+' : ''}{diff}
@@ -1210,9 +1229,17 @@ function ClientScoreSummary({ cid }) {
   const [disputes] = useLocalStorage(`credit_${cid}_disputes`, [])
   const [negatives] = useLocalStorage(`credit_${cid}_negatives`, [])
 
-  const latest = [...scores].sort((a, b) => b.date.localeCompare(a.date))[0]
-  const avg    = latest ? Math.round((latest.equifax + latest.experian + latest.transunion) / 3) : null
-  const openD  = disputes.filter(d => d.status === 'Open' || d.status === 'In Progress').length
+  const sorted = [...scores].sort((a, b) => b.date.localeCompare(a.date))
+  // Use most recent non-null value per bureau (same logic as ScoreTracker)
+  const cur = { equifax: null, experian: null, transunion: null }
+  for (const entry of sorted) {
+    if (!cur.equifax    && entry.equifax)    cur.equifax    = entry.equifax
+    if (!cur.experian   && entry.experian)   cur.experian   = entry.experian
+    if (!cur.transunion && entry.transunion) cur.transunion = entry.transunion
+  }
+  const vals = [cur.equifax, cur.experian, cur.transunion].filter(v => v > 0)
+  const avg  = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
+  const openD = disputes.filter(d => d.status === 'Open' || d.status === 'In Progress').length
 
   return { avg, openD, negCount: negatives.length }
 }
@@ -1223,9 +1250,16 @@ function ClientCard({ client, selected, onSelect }) {
   const [disputes] = useLocalStorage(`credit_${client.id}_disputes`, [])
   const [negatives]= useLocalStorage(`credit_${client.id}_negatives`, [])
 
-  const latest = [...scores].sort((a, b) => b.date.localeCompare(a.date))[0]
-  const avg    = latest ? Math.round((latest.equifax + latest.experian + latest.transunion) / 3) : null
-  const openD  = disputes.filter(d => d.status === 'Open' || d.status === 'In Progress').length
+  const sorted2 = [...scores].sort((a, b) => b.date.localeCompare(a.date))
+  const cur2 = { equifax: null, experian: null, transunion: null }
+  for (const entry of sorted2) {
+    if (!cur2.equifax    && entry.equifax)    cur2.equifax    = entry.equifax
+    if (!cur2.experian   && entry.experian)   cur2.experian   = entry.experian
+    if (!cur2.transunion && entry.transunion) cur2.transunion = entry.transunion
+  }
+  const vals2 = [cur2.equifax, cur2.experian, cur2.transunion].filter(v => v > 0)
+  const avg   = vals2.length ? Math.round(vals2.reduce((a, b) => a + b, 0) / vals2.length) : null
+  const openD = disputes.filter(d => d.status === 'Open' || d.status === 'In Progress').length
 
   return (
     <div
