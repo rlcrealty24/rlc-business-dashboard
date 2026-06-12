@@ -58,7 +58,12 @@ function ScoreTracker({ cid }) {
 
   function save(e) {
     e.preventDefault()
-    setScores([...scores, { ...form, id: uid(), equifax: Number(form.equifax), experian: Number(form.experian), transunion: Number(form.transunion) }])
+    setScores([...scores, {
+      ...form, id: uid(),
+      equifax:    form.equifax    ? Number(form.equifax)    : null,
+      experian:   form.experian   ? Number(form.experian)   : null,
+      transunion: form.transunion ? Number(form.transunion) : null,
+    }])
     setForm({ date: today(), equifax: '', experian: '', transunion: '' })
   }
 
@@ -92,17 +97,17 @@ function ScoreTracker({ cid }) {
   }
 
   function confirmImport() {
-    // Save scores if any bureau score present
-    const eq = Number(previewScores.equifax)
-    const ex = Number(previewScores.experian)
-    const tu = Number(previewScores.transunion)
+    // Save scores — store null for missing bureaus so average isn't skewed
+    const eq = Number(previewScores.equifax)  || null
+    const ex = Number(previewScores.experian) || null
+    const tu = Number(previewScores.transunion) || null
     if (eq || ex || tu) {
       setScores(prev => [...prev, {
         id: uid(),
         date:       previewScores.date || today(),
-        equifax:    eq || 0,
-        experian:   ex || 0,
-        transunion: tu || 0,
+        equifax:    eq,
+        experian:   ex,
+        transunion: tu,
       }])
     }
     // Import negative accounts
@@ -138,8 +143,16 @@ function ScoreTracker({ cid }) {
   const sorted  = [...scores].sort((a, b) => b.date.localeCompare(a.date))
   const latest  = sorted[0]
   const prev    = sorted[1]
-  const avg     = latest   ? Math.round((latest.equifax + latest.experian + latest.transunion) / 3) : null
-  const prevAvg = prev     ? Math.round((prev.equifax + prev.experian + prev.transunion) / 3)       : null
+
+  // Only average bureaus that actually have a score (ignore 0 / null)
+  function calcAvg(entry) {
+    if (!entry) return null
+    const vals = [entry.equifax, entry.experian, entry.transunion].filter(v => v > 0)
+    return vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
+  }
+
+  const avg     = calcAvg(latest)
+  const prevAvg = calcAvg(prev)
   const change  = avg && prevAvg ? avg - prevAvg : null
 
   return (
@@ -297,16 +310,19 @@ function ScoreTracker({ cid }) {
 
       {/* Manual log entry */}
       <div className="card mb-24">
-        <div className="card-header"><h3>Log Scores Manually</h3></div>
+        <div className="card-header">
+          <h3>Log Scores Manually</h3>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Fill only the bureaus you have — blanks show as —</span>
+        </div>
         <div className="card-body">
           <form onSubmit={save}>
             <div className="form-row">
               <div className="form-group"><label>Date</label><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} required /></div>
-              <div className="form-group"><label>Equifax</label><input type="number" min="300" max="850" placeholder="300–850" value={form.equifax} onChange={e => setForm({ ...form, equifax: e.target.value })} required /></div>
-              <div className="form-group"><label>Experian</label><input type="number" min="300" max="850" placeholder="300–850" value={form.experian} onChange={e => setForm({ ...form, experian: e.target.value })} required /></div>
-              <div className="form-group"><label>TransUnion</label><input type="number" min="300" max="850" placeholder="300–850" value={form.transunion} onChange={e => setForm({ ...form, transunion: e.target.value })} required /></div>
+              <div className="form-group"><label>Equifax <span style={{color:'var(--text-faint)',fontWeight:400}}>(optional)</span></label><input type="number" min="300" max="850" placeholder="300–850" value={form.equifax} onChange={e => setForm({ ...form, equifax: e.target.value })} /></div>
+              <div className="form-group"><label>Experian <span style={{color:'var(--text-faint)',fontWeight:400}}>(optional)</span></label><input type="number" min="300" max="850" placeholder="300–850" value={form.experian} onChange={e => setForm({ ...form, experian: e.target.value })} /></div>
+              <div className="form-group"><label>TransUnion <span style={{color:'var(--text-faint)',fontWeight:400}}>(optional)</span></label><input type="number" min="300" max="850" placeholder="300–850" value={form.transunion} onChange={e => setForm({ ...form, transunion: e.target.value })} /></div>
             </div>
-            <button type="submit" className="btn btn-primary btn-sm">Log Scores</button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!form.equifax && !form.experian && !form.transunion}>Log Scores</button>
           </form>
         </div>
       </div>
@@ -314,20 +330,26 @@ function ScoreTracker({ cid }) {
       {/* History table */}
       {scores.length > 0 && (
         <div className="card">
-          <div className="card-header"><h3>Score History</h3></div>
+          <div className="card-header">
+            <h3>Score History</h3>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              Tip: upload one report per bureau to fill all 3 scores
+            </span>
+          </div>
           <div className="table-container">
             <table>
               <thead><tr><th>Date</th><th>Equifax</th><th>Experian</th><th>TransUnion</th><th>Avg</th><th></th></tr></thead>
               <tbody>
                 {sorted.map(s => {
-                  const a = Math.round((s.equifax + s.experian + s.transunion) / 3)
+                  const vals = [s.equifax, s.experian, s.transunion].filter(v => v > 0)
+                  const a    = vals.length ? Math.round(vals.reduce((x,y) => x+y,0) / vals.length) : null
                   return (
                     <tr key={s.id}>
                       <td>{formatDate(s.date)}</td>
-                      <td className={scoreColor(s.equifax)}>{s.equifax}</td>
-                      <td className={scoreColor(s.experian)}>{s.experian}</td>
-                      <td className={scoreColor(s.transunion)}>{s.transunion}</td>
-                      <td className={`bold ${scoreColor(a)}`}>{a}</td>
+                      <td className={scoreColor(s.equifax)}>{s.equifax || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
+                      <td className={scoreColor(s.experian)}>{s.experian || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
+                      <td className={scoreColor(s.transunion)}>{s.transunion || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
+                      <td className={`bold ${scoreColor(a)}`}>{a || <span style={{color:'var(--text-faint)',fontWeight:'normal'}}>—</span>}</td>
                       <td><button className="btn btn-sm btn-danger" onClick={() => setScores(scores.filter(x => x.id !== s.id))}>×</button></td>
                     </tr>
                   )
