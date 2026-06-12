@@ -69,12 +69,20 @@ Return this exact structure:
   "transunion": score_number_or_null,
   "negatives": [
     {
-      "creditor":   "name of creditor or collection agency",
-      "type":       "one of: Collection, Late Payment, Charge-off, Bankruptcy, Repossession, Judgment, Tax Lien, Other",
-      "bureaus":    ["Equifax","Experian","TransUnion"] — only bureaus where this item appears,
-      "balance":    number_or_null,
-      "status":     "brief status description e.g. '120 days late', 'In collections', 'Charge-off'",
-      "dateOpened": "YYYY-MM-DD or empty string"
+      "creditor":          "name of creditor or collection agency",
+      "type":              "one of: Collection, Late Payment, Charge-off, Bankruptcy, Repossession, Judgment, Tax Lien, Other",
+      "bureaus":           ["Equifax","Experian","TransUnion"] — only bureaus where this item appears,
+      "balance":           number_or_null,
+      "status":            "brief status e.g. '120 days late', 'In collections', 'Charge-off'",
+      "dateOpened":        "YYYY-MM-DD or empty string",
+      "dateLastActivity":  "YYYY-MM-DD or empty string",
+      "accountNumber":     "account number if visible, else empty string",
+      "originalCreditor":  "original creditor name if this is a collection agency, else empty string",
+      "address":           "creditor street address if listed on report, else empty string",
+      "city":              "city if listed, else empty string",
+      "state":             "state abbreviation if listed, else empty string",
+      "zip":               "zip code if listed, else empty string",
+      "phone":             "phone number if listed, else empty string"
     }
   ],
   "accounts": [

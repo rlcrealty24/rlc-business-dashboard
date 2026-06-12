@@ -118,13 +118,21 @@ function ScoreTracker({ cid }) {
     if (importNegs && preview?.negatives?.length) {
       const newNegs = preview.negatives.map(n => ({
         id: uid(), addedAt: today(),
-        creditor:   n.creditor   || '',
-        type:       NEGATIVE_TYPES.includes(n.type) ? n.type : 'Other',
-        bureaus:    Array.isArray(n.bureaus) ? n.bureaus : [],
-        balance:    n.balance != null ? String(n.balance) : '',
-        status:     n.status     || '',
-        dateOpened: n.dateOpened || '',
-        notes:      'Imported from credit report',
+        creditor:          n.creditor          || '',
+        type:              NEGATIVE_TYPES.includes(n.type) ? n.type : 'Other',
+        bureaus:           Array.isArray(n.bureaus) ? n.bureaus : [],
+        balance:           n.balance != null ? String(n.balance) : '',
+        status:            n.status            || '',
+        dateOpened:        n.dateOpened        || '',
+        dateLastActivity:  n.dateLastActivity  || '',
+        accountNumber:     n.accountNumber     || '',
+        originalCreditor:  n.originalCreditor  || '',
+        address:           n.address           || '',
+        city:              n.city              || '',
+        state:             n.state             || '',
+        zip:               n.zip               || '',
+        phone:             n.phone             || '',
+        notes:             'Imported from credit report',
       }))
       setNegatives(prev => [...prev, ...newNegs])
     }
@@ -628,57 +636,219 @@ function DisputeTracker({ cid }) {
 }
 
 // ─── Negative Accounts ─────────────────────────────────────────────────────────
+// ── Bureau tag pill ──────────────────────────────────────────────────────────
+const BUREAU_STYLE = {
+  'Equifax':    { abbr: 'EQ', bg: '#EEF2FF', color: '#3730A3', border: '#C7D2FE' },
+  'Experian':   { abbr: 'EX', bg: '#EDFAF4', color: '#065F46', border: '#6EE7B7' },
+  'TransUnion': { abbr: 'TU', bg: '#F5F3FF', color: '#5B21B6', border: '#C4B5FD' },
+}
+function BureauTag({ bureau }) {
+  const s = BUREAU_STYLE[bureau] || { abbr: (bureau||'').slice(0,2).toUpperCase(), bg:'var(--surface-hover)', color:'var(--text-muted)', border:'var(--border)' }
+  return (
+    <span title={bureau} style={{ fontSize:'0.65rem', fontWeight:700, padding:'2px 7px', borderRadius:4,
+      background:s.bg, color:s.color, border:`1px solid ${s.border}`, letterSpacing:'0.02em' }}>
+      {s.abbr}
+    </span>
+  )
+}
+
+function emptyNegForm() {
+  return {
+    creditor:'', type:'Collection', bureaus:[],
+    balance:'', accountNumber:'', originalCreditor:'',
+    dateOpened:'', dateLastActivity:'', status:'',
+    address:'', city:'', state:'', zip:'', phone:'',
+    notes:'',
+  }
+}
+
 function NegativeAccounts({ cid }) {
   const [accounts, setAccounts] = useLocalStorage(`credit_${cid}_negatives`, [])
-  const [form, setForm]         = useState({ creditor: '', type: 'Collection', balance: '', dateOpened: '', bureaus: [], notes: '' })
-  const [adding, setAdding]     = useState(false)
+  const [adding,   setAdding]   = useState(false)
+  const [form,     setForm]     = useState(emptyNegForm())
+  const [detailId, setDetailId] = useState(null)   // expanded detail card
+  const [editId,   setEditId]   = useState(null)    // card in edit mode
+  const [editForm, setEditForm] = useState({})
 
-  function toggleBureau(b) {
-    const arr = form.bureaus.includes(b) ? form.bureaus.filter(x => x !== b) : [...form.bureaus, b]
-    setForm({ ...form, bureaus: arr })
+  const typeColor = { Collection:'badge-red', 'Late Payment':'badge-amber', 'Charge-off':'badge-red', Bankruptcy:'badge-red', Repossession:'badge-red', Judgment:'badge-red', 'Tax Lien':'badge-red', Other:'badge-gray' }
+
+  function toggleBureau(b, target, setTarget) {
+    const arr = target.bureaus.includes(b) ? target.bureaus.filter(x => x !== b) : [...target.bureaus, b]
+    setTarget({ ...target, bureaus: arr })
   }
 
-  function save(e) {
+  function saveNew(e) {
     e.preventDefault()
-    setAccounts([...accounts, { ...form, id: uid(), balance: Number(form.balance) }])
-    setForm({ creditor: '', type: 'Collection', balance: '', dateOpened: '', bureaus: [], notes: '' })
+    setAccounts([...accounts, { ...form, id: uid(), addedAt: today(), balance: Number(form.balance) || 0 }])
+    setForm(emptyNegForm())
     setAdding(false)
   }
 
-  const typeColor = { Collection: 'badge-red', 'Late Payment': 'badge-amber', 'Charge-off': 'badge-red', Bankruptcy: 'badge-red', Repossession: 'badge-red', Judgment: 'badge-red', 'Tax Lien': 'badge-red', Other: 'badge-gray' }
+  function saveEdit(id) {
+    setAccounts(accounts.map(a => a.id !== id ? a : { ...a, ...editForm, balance: Number(editForm.balance) || 0 }))
+    setEditId(null)
+  }
+
+  function downloadLetter(a) {
+    const bureauLine = (a.bureaus||[]).length ? `Reporting Bureaus: ${a.bureaus.join(', ')}\n` : ''
+    const addrBlock  = [a.address, a.city && `${a.city}, ${a.state} ${a.zip}`, a.phone && `Phone: ${a.phone}`].filter(Boolean).join('\n')
+    const letter = [
+      'CERTIFIED MAIL — RETURN RECEIPT REQUESTED',
+      '',
+      new Date().toLocaleDateString('en-US', { month:'long', day:'numeric', year:'numeric' }),
+      '',
+      a.creditor,
+      addrBlock,
+      '',
+      'To Whom It May Concern:',
+      '',
+      `I am writing to formally dispute the following account appearing on my credit report:`,
+      '',
+      `  Creditor:         ${a.creditor}`,
+      a.originalCreditor ? `  Original Creditor: ${a.originalCreditor}` : '',
+      a.accountNumber    ? `  Account Number:   ${a.accountNumber}` : '',
+      `  Type:             ${a.type}`,
+      a.balance > 0      ? `  Balance:          $${Number(a.balance).toLocaleString()}` : '',
+      a.dateOpened       ? `  Date Opened:      ${formatDate(a.dateOpened)}` : '',
+      bureauLine.trim()  ? `  ${bureauLine.trim()}` : '',
+      '',
+      'Under the Fair Credit Reporting Act (FCRA), Section 611, I have the right to dispute',
+      'inaccurate or unverifiable information on my credit report. I am requesting that you',
+      'investigate this item and provide verification. If this information cannot be verified,',
+      'I request its immediate removal from my credit report.',
+      '',
+      'Please provide a written response within 30 days as required by the FCRA.',
+      '',
+      'Sincerely,',
+      '',
+      '[Your Name]',
+      '[Address]',
+      '[City, State, ZIP]',
+      '[Phone]',
+    ].filter(l => l !== undefined).join('\n')
+
+    const blob = new Blob([letter], { type:'text/plain' })
+    const url  = URL.createObjectURL(blob)
+    const el   = document.createElement('a')
+    el.href = url
+    el.download = `dispute-${a.creditor.replace(/\s+/g,'-').toLowerCase()}.txt`
+    el.click()
+    URL.revokeObjectURL(url)
+  }
+
+  // ── Group accounts by creditor name (case-insensitive) ──────────────────────
+  const groups = Object.values(
+    accounts.reduce((acc, a) => {
+      const key = (a.creditor || '').trim().toLowerCase()
+      if (!acc[key]) acc[key] = []
+      acc[key].push(a)
+      return acc
+    }, {})
+  ).sort((g1, g2) => (g1[0].creditor || '').localeCompare(g2[0].creditor || ''))
+
+  // ── Add form ─────────────────────────────────────────────────────────────────
+  function NegForm({ value, onChange, onSubmit, onCancel, submitLabel }) {
+    return (
+      <form onSubmit={onSubmit}>
+        <div className="form-row">
+          <div className="form-group" style={{ gridColumn:'span 2' }}>
+            <label>Creditor / Collection Agency</label>
+            <input placeholder="e.g. Portfolio Recovery Associates" value={value.creditor} onChange={e => onChange({ ...value, creditor: e.target.value })} required />
+          </div>
+          <div className="form-group">
+            <label>Type</label>
+            <select value={value.type} onChange={e => onChange({ ...value, type: e.target.value })}>
+              {NEGATIVE_TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Balance ($)</label>
+            <input type="number" step="0.01" placeholder="0.00" value={value.balance} onChange={e => onChange({ ...value, balance: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Account Number</label>
+            <input placeholder="xxxx-xxxx" value={value.accountNumber||''} onChange={e => onChange({ ...value, accountNumber: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Original Creditor</label>
+            <input placeholder="e.g. Capital One" value={value.originalCreditor||''} onChange={e => onChange({ ...value, originalCreditor: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Date Opened</label>
+            <input type="date" value={value.dateOpened||''} onChange={e => onChange({ ...value, dateOpened: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Last Activity</label>
+            <input type="date" value={value.dateLastActivity||''} onChange={e => onChange({ ...value, dateLastActivity: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Status</label>
+            <input placeholder="e.g. Unpaid, Paid, In dispute" value={value.status||''} onChange={e => onChange({ ...value, status: e.target.value })} />
+          </div>
+        </div>
+
+        {/* Address block */}
+        <div style={{ background:'var(--surface-hover)', border:'1px solid var(--border-light)', borderRadius:'var(--radius)', padding:'12px 14px', marginBottom:14 }}>
+          <div style={{ fontSize:'0.68rem', textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', fontWeight:600, marginBottom:10 }}>Creditor Contact Info</div>
+          <div className="form-row" style={{ gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:10 }}>
+            <div className="form-group"><label>Street Address</label><input placeholder="123 Main St" value={value.address||''} onChange={e => onChange({ ...value, address: e.target.value })} /></div>
+            <div className="form-group"><label>Phone</label><input placeholder="(800) 000-0000" value={value.phone||''} onChange={e => onChange({ ...value, phone: e.target.value })} /></div>
+          </div>
+          <div className="form-row" style={{ gridTemplateColumns:'2fr 1fr 1fr', gap:10, marginBottom:0 }}>
+            <div className="form-group"><label>City</label><input placeholder="City" value={value.city||''} onChange={e => onChange({ ...value, city: e.target.value })} /></div>
+            <div className="form-group"><label>State</label><input placeholder="TX" maxLength={2} value={value.state||''} onChange={e => onChange({ ...value, state: e.target.value })} /></div>
+            <div className="form-group"><label>ZIP</label><input placeholder="00000" value={value.zip||''} onChange={e => onChange({ ...value, zip: e.target.value })} /></div>
+          </div>
+        </div>
+
+        {/* Bureaus */}
+        <div className="form-group mb-12">
+          <label>Reporting Bureaus</label>
+          <div style={{ display:'flex', gap:20, marginTop:8 }}>
+            {BUREAUS.map(b => (
+              <label key={b} style={{ display:'flex', gap:7, alignItems:'center', cursor:'pointer', fontSize:'0.875rem', textTransform:'none', letterSpacing:'normal', color:'var(--text)', fontWeight:400 }}>
+                <input type="checkbox" checked={(value.bureaus||[]).includes(b)} onChange={() => toggleBureau(b, value, onChange)} />
+                {b}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="form-group mb-16">
+          <label>Notes</label>
+          <textarea value={value.notes||''} onChange={e => onChange({ ...value, notes: e.target.value })} placeholder="SOL date, settlement offers, dispute history, account details…" />
+        </div>
+
+        <div style={{ display:'flex', gap:8 }}>
+          <button type="submit" className="btn btn-primary btn-sm">{submitLabel}</button>
+          <button type="button" className="btn btn-sm" onClick={onCancel}>Cancel</button>
+        </div>
+      </form>
+    )
+  }
 
   return (
     <div>
       <div className="flex-between mb-16">
-        <h2>Negative Accounts ({accounts.length})</h2>
-        <button className="btn btn-primary btn-sm" onClick={() => setAdding(!adding)}>{adding ? 'Cancel' : '+ Add Account'}</button>
+        <div>
+          <h2>Negative Accounts</h2>
+          <div style={{ fontSize:'0.78rem', color:'var(--text-muted)', marginTop:3 }}>
+            {groups.length} account{groups.length !== 1 ? 's' : ''} · {accounts.length} total entries · click any card for full details
+          </div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => { setAdding(!adding); setForm(emptyNegForm()) }}>
+          {adding ? 'Cancel' : '+ Add Account'}
+        </button>
       </div>
 
+      {/* Add form */}
       {adding && (
-        <div className="card mb-24" style={{ borderColor: 'var(--pink-border)' }}>
-          <div className="card-header" style={{ background: 'var(--pink-light)' }}><h3 style={{ color: 'var(--pink)' }}>New Negative Account</h3></div>
+        <div className="card mb-24" style={{ borderColor:'var(--pink-border)' }}>
+          <div className="card-header" style={{ background:'var(--pink-light)' }}>
+            <h3 style={{ color:'var(--pink)' }}>New Negative Account</h3>
+          </div>
           <div className="card-body">
-            <form onSubmit={save}>
-              <div className="form-row">
-                <div className="form-group"><label>Creditor</label><input placeholder="Creditor name" value={form.creditor} onChange={e => setForm({ ...form, creditor: e.target.value })} required /></div>
-                <div className="form-group"><label>Type</label><select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>{NEGATIVE_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
-                <div className="form-group"><label>Balance ($)</label><input type="number" step="0.01" placeholder="0.00" value={form.balance} onChange={e => setForm({ ...form, balance: e.target.value })} /></div>
-                <div className="form-group"><label>Date Opened</label><input type="date" value={form.dateOpened} onChange={e => setForm({ ...form, dateOpened: e.target.value })} /></div>
-              </div>
-              <div className="form-group mb-12">
-                <label>Reporting Bureaus</label>
-                <div style={{ display: 'flex', gap: 20, marginTop: 8 }}>
-                  {BUREAUS.map(b => (
-                    <label key={b} style={{ display: 'flex', gap: 7, alignItems: 'center', cursor: 'pointer', fontSize: '0.875rem', textTransform: 'none', letterSpacing: 'normal', color: 'var(--text)', fontWeight: 400 }}>
-                      <input type="checkbox" checked={form.bureaus.includes(b)} onChange={() => toggleBureau(b)} />
-                      {b}
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div className="form-group mb-16"><label>Notes</label><textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="SOL date, settlement offers, dispute history…" /></div>
-              <button type="submit" className="btn btn-primary btn-sm">Save Account</button>
-            </form>
+            <NegForm value={form} onChange={setForm} onSubmit={saveNew} onCancel={() => setAdding(false)} submitLabel="Save Account" />
           </div>
         </div>
       )}
@@ -686,43 +856,127 @@ function NegativeAccounts({ cid }) {
       {accounts.length === 0 ? (
         <div className="empty-state"><p>No negative accounts tracked yet</p></div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {accounts.map(a => (
-            <div key={a.id} className="card" style={{ borderLeft: '4px solid var(--pink)' }}>
-              <div className="card-body" style={{ padding: '16px 20px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
-                      <span className="bold" style={{ fontSize: '1rem' }}>{a.creditor}</span>
-                      <span className={`badge ${typeColor[a.type] || 'badge-gray'}`}>{a.type}</span>
-                      {(a.bureaus || []).map(b => <span key={b} className="badge badge-gray">{b}</span>)}
+        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+          {groups.map(group => {
+            // Merge bureaus across all records in this group
+            const allBureaus = [...new Set(group.flatMap(a => a.bureaus || []))]
+            const primary    = group[0]
+            const maxBalance = Math.max(...group.map(a => Number(a.balance) || 0))
+            const isOpen     = detailId === primary.id
+            const isEditing  = editId === primary.id
+
+            return (
+              <div key={primary.id} className="card" style={{ borderLeft:`4px solid ${allBureaus.length === 0 ? 'var(--border)' : allBureaus.length >= 3 ? 'var(--red)' : allBureaus.length === 2 ? 'var(--amber)' : 'var(--blue)'}`, overflow:'hidden' }}>
+
+                {/* ── Summary row (always visible, click to expand) ── */}
+                <div
+                  onClick={() => { if (!isEditing) setDetailId(isOpen ? null : primary.id) }}
+                  style={{ padding:'14px 18px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, background: isOpen ? 'var(--pink-light)' : 'var(--surface)', transition:'background 0.15s' }}
+                  onMouseEnter={e => { if (!isOpen) e.currentTarget.style.background = 'var(--surface-hover)' }}
+                  onMouseLeave={e => { if (!isOpen) e.currentTarget.style.background = 'var(--surface)' }}
+                >
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:5 }}>
+                      <span style={{ fontWeight:700, fontSize:'0.95rem', color:'var(--heading)' }}>{primary.creditor}</span>
+                      <span className={`badge ${typeColor[primary.type] || 'badge-gray'}`}>{primary.type}</span>
+                      {/* Bureau tags — grouped */}
+                      <div style={{ display:'flex', gap:4 }}>
+                        {allBureaus.length > 0
+                          ? allBureaus.map(b => <BureauTag key={b} bureau={b} />)
+                          : <span style={{ fontSize:'0.68rem', color:'var(--text-faint)' }}>No bureau listed</span>
+                        }
+                      </div>
+                      {group.length > 1 && (
+                        <span style={{ fontSize:'0.65rem', color:'var(--text-muted)', background:'var(--surface-hover)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px' }}>
+                          {group.length} entries
+                        </span>
+                      )}
                     </div>
-                    <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
-                      {a.balance > 0 && <div><div className="metric-label">Balance</div><div className="text-red bold">${Number(a.balance).toLocaleString()}</div></div>}
-                      {a.dateOpened && <div><div className="metric-label">Date</div><div className="text-sm">{formatDate(a.dateOpened)}</div></div>}
+                    <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
+                      {maxBalance > 0 && <span style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--red)' }}>${maxBalance.toLocaleString()}</span>}
+                      {primary.dateOpened && <span style={{ fontSize:'0.75rem', color:'var(--text-muted)' }}>Opened {formatDate(primary.dateOpened)}</span>}
+                      {primary.status && <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', fontStyle:'italic' }}>{primary.status}</span>}
                     </div>
-                    {a.notes && <div className="text-xs text-muted mt-8" style={{ lineHeight: 1.5 }}>{a.notes}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                    <button
-                      className="btn btn-sm btn-primary"
-                      onClick={() => {
-                        const letter = `CERTIFIED MAIL\n\n${new Date().toLocaleDateString()}\n\nTo Whom It May Concern,\n\nI am writing to formally dispute the following account appearing on my credit report:\n\nCreditor: ${a.creditor}\nType: ${a.type}\n${a.balance > 0 ? `Balance: $${Number(a.balance).toLocaleString()}\n` : ''}${a.dateOpened ? `Date Opened: ${formatDate(a.dateOpened)}\n` : ''}\nI am requesting verification of this account as required under the Fair Credit Reporting Act (FCRA). If this information cannot be verified, I request its immediate removal from my credit report.\n\nSincerely,\n[Your Name]\n[Address]\n[City, State, ZIP]`
-                        const blob = new Blob([letter], { type: 'text/plain' })
-                        const url  = URL.createObjectURL(blob)
-                        const a2   = document.createElement('a')
-                        a2.href = url
-                        a2.download = `dispute-letter-${a.creditor.replace(/\s+/g, '-').toLowerCase()}.txt`
-                        a2.click()
-                        URL.revokeObjectURL(url)
-                      }}
-                    >📄 Dispute Letter</button>
-                    <button className="btn btn-sm btn-danger" onClick={() => setAccounts(accounts.filter(x => x.id !== a.id))}>×</button>
-                  </div>
+                  <span style={{ color:'var(--pink)', fontSize:'0.75rem', flexShrink:0 }}>{isOpen ? '▲ Hide' : '▼ Details'}</span>
                 </div>
+
+                {/* ── Expanded detail panel ── */}
+                {isOpen && !isEditing && (
+                  <div style={{ borderTop:'1px solid var(--pink-border)', padding:'18px 20px', background:'#FFFBFD' }}>
+                    {/* If multiple records in group, show each */}
+                    {group.map((a, gi) => (
+                      <div key={a.id} style={{ marginBottom: gi < group.length-1 ? 20 : 0, paddingBottom: gi < group.length-1 ? 20 : 0, borderBottom: gi < group.length-1 ? '1px dashed var(--border-light)' : 'none' }}>
+                        {group.length > 1 && (
+                          <div style={{ fontSize:'0.65rem', textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--pink-text)', fontWeight:700, marginBottom:10 }}>
+                            Entry {gi+1} — {(a.bureaus||[]).join(' · ') || 'No bureau'}
+                          </div>
+                        )}
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px,1fr))', gap:'10px 24px', marginBottom:12 }}>
+                          {[
+                            { label:'Creditor',          val: a.creditor },
+                            { label:'Original Creditor', val: a.originalCreditor },
+                            { label:'Account Number',    val: a.accountNumber },
+                            { label:'Type',              val: a.type },
+                            { label:'Balance',           val: a.balance > 0 ? `$${Number(a.balance).toLocaleString()}` : null },
+                            { label:'Status',            val: a.status },
+                            { label:'Date Opened',       val: a.dateOpened ? formatDate(a.dateOpened) : null },
+                            { label:'Last Activity',     val: a.dateLastActivity ? formatDate(a.dateLastActivity) : null },
+                            { label:'Phone',             val: a.phone },
+                            { label:'Address',           val: [a.address, a.city && `${a.city}, ${a.state} ${a.zip}`].filter(Boolean).join(' · ') || null },
+                          ].filter(f => f.val).map(f => (
+                            <div key={f.label}>
+                              <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-faint)', fontWeight:600 }}>{f.label}</div>
+                              <div style={{ fontSize:'0.83rem', color:'var(--text)', marginTop:2 }}>{f.val}</div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Bureaus detail */}
+                        <div style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
+                          <span style={{ fontSize:'0.68rem', color:'var(--text-muted)', fontWeight:600 }}>Reporting on:</span>
+                          {(a.bureaus||[]).length > 0
+                            ? a.bureaus.map(b => <BureauTag key={b} bureau={b} />)
+                            : <span style={{ fontSize:'0.72rem', color:'var(--text-faint)' }}>—</span>
+                          }
+                        </div>
+                        {a.notes && (
+                          <div style={{ background:'var(--surface-hover)', border:'1px solid var(--border-light)', borderRadius:'var(--radius)', padding:'8px 12px', fontSize:'0.8rem', color:'var(--text-muted)', marginBottom:12, lineHeight:1.6 }}>
+                            📝 {a.notes}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Action buttons */}
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:4 }}>
+                      <button className="btn btn-primary btn-sm" onClick={() => downloadLetter(primary)}>📄 Dispute Letter</button>
+                      <button className="btn btn-sm" onClick={() => { setEditId(primary.id); setEditForm({ ...primary }) }}>✏️ Edit</button>
+                      {group.map(a => (
+                        <button key={a.id} className="btn btn-sm btn-danger"
+                          onClick={() => { setAccounts(accounts.filter(x => x.id !== a.id)); if (group.length === 1) setDetailId(null) }}>
+                          {group.length > 1 ? `🗑 Delete entry` : '🗑 Delete'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Inline edit panel ── */}
+                {isEditing && (
+                  <div style={{ borderTop:'1px solid var(--pink-border)', padding:'18px 20px', background:'var(--pink-light)' }}>
+                    <div style={{ fontWeight:600, marginBottom:16, color:'var(--pink-text)', fontSize:'0.875rem' }}>✏️ Edit Account</div>
+                    <NegForm
+                      value={editForm}
+                      onChange={setEditForm}
+                      onSubmit={e => { e.preventDefault(); saveEdit(primary.id) }}
+                      onCancel={() => setEditId(null)}
+                      submitLabel="Save Changes"
+                    />
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
