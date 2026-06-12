@@ -3,11 +3,35 @@ import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { formatDate, formatPercent, today, uid } from '../utils/formatters.js'
 import { readCreditReport } from '../utils/anthropic.js'
 
-const BUREAUS           = ['Equifax', 'Experian', 'TransUnion']
-const DISPUTE_STATUSES  = ['Open', 'In Progress', 'Resolved', 'Closed']
-const NEGATIVE_TYPES    = ['Collection', 'Late Payment', 'Charge-off', 'Bankruptcy', 'Repossession', 'Judgment', 'Tax Lien', 'Other']
-const ACTION_PRIORITIES = ['High', 'Medium', 'Low']
-const CLIENT_STATUSES   = ['Active', 'On Hold', 'Completed']
+const BUREAUS              = ['Equifax', 'Experian', 'TransUnion']
+const DISPUTE_STATUSES     = ['Open', 'In Progress', 'Resolved', 'Closed']
+const NEGATIVE_TYPES       = ['Collection', 'Late Payment', 'Charge-off', 'Bankruptcy', 'Repossession', 'Judgment', 'Tax Lien', 'Other']
+const ACTION_PRIORITIES    = ['High', 'Medium', 'Low']
+const CLIENT_STATUSES      = ['Active', 'On Hold', 'Completed']
+const NEG_DISPUTE_STATUSES = ['Not Started', 'Letter Sent', 'Under Investigation', 'Verified by Bureau', 'Removed']
+
+// Negative items fall off 7 yrs from DOFD (10 yrs for Ch.7 Bankruptcy)
+function calcFallOff(a) {
+  if (!a.dateFirstDelinquency) return null
+  const d = new Date(a.dateFirstDelinquency + 'T00:00:00')
+  d.setFullYear(d.getFullYear() + (a.type === 'Bankruptcy' ? 10 : 7))
+  return d.toISOString().split('T')[0]
+}
+function fallOffLabel(dateStr) {
+  if (!dateStr) return null
+  const diff = (new Date(dateStr + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24 * 30.44)
+  if (diff < 0) return `Fell off ${Math.abs(Math.round(diff / 12))}yr ago`
+  if (diff < 1) return 'Falls off this month'
+  if (diff < 12) return `Falls off in ${Math.round(diff)}mo`
+  return `Falls off in ${(diff / 12).toFixed(1)}yr`
+}
+const NEG_DISPUTE_COLORS = {
+  'Not Started':         { bg:'var(--surface-hover)', color:'var(--text-muted)',  border:'var(--border)' },
+  'Letter Sent':         { bg:'#EEF2FF',              color:'#3730A3',            border:'#C7D2FE'       },
+  'Under Investigation': { bg:'#FFFBEB',              color:'#92400E',            border:'#FDE68A'       },
+  'Verified by Bureau':  { bg:'#FEF2F2',              color:'#991B1B',            border:'#FECACA'       },
+  'Removed':             { bg:'#EDFAF4',              color:'#065F46',            border:'#6EE7B7'       },
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function scoreColor(n) {
@@ -118,21 +142,24 @@ function ScoreTracker({ cid }) {
     if (importNegs && preview?.negatives?.length) {
       const newNegs = preview.negatives.map(n => ({
         id: uid(), addedAt: today(),
-        creditor:          n.creditor          || '',
-        type:              NEGATIVE_TYPES.includes(n.type) ? n.type : 'Other',
-        bureaus:           Array.isArray(n.bureaus) ? n.bureaus : [],
-        balance:           n.balance != null ? String(n.balance) : '',
-        status:            n.status            || '',
-        dateOpened:        n.dateOpened        || '',
-        dateLastActivity:  n.dateLastActivity  || '',
-        accountNumber:     n.accountNumber     || '',
-        originalCreditor:  n.originalCreditor  || '',
-        address:           n.address           || '',
-        city:              n.city              || '',
-        state:             n.state             || '',
-        zip:               n.zip               || '',
-        phone:             n.phone             || '',
-        notes:             'Imported from credit report',
+        creditor:              n.creditor              || '',
+        type:                  NEGATIVE_TYPES.includes(n.type) ? n.type : 'Other',
+        bureaus:               Array.isArray(n.bureaus) ? n.bureaus : [],
+        balance:               n.balance != null ? String(n.balance) : '',
+        status:                n.status                || '',
+        dateOpened:            n.dateOpened            || '',
+        dateFirstDelinquency:  n.dateFirstDelinquency  || '',
+        dateLastActivity:      n.dateLastActivity      || '',
+        accountNumber:         n.accountNumber         || '',
+        originalCreditor:      n.originalCreditor      || '',
+        address:               n.address               || '',
+        city:                  n.city                  || '',
+        state:                 n.state                 || '',
+        zip:                   n.zip                   || '',
+        phone:                 n.phone                 || '',
+        disputeStatus:         'Not Started',
+        lastDisputeDate:       '',
+        notes:                 'Imported from credit report',
       }))
       setNegatives(prev => [...prev, ...newNegs])
     }
@@ -656,7 +683,8 @@ function emptyNegForm() {
   return {
     creditor:'', type:'Collection', bureaus:[],
     balance:'', accountNumber:'', originalCreditor:'',
-    dateOpened:'', dateLastActivity:'', status:'',
+    dateOpened:'', dateFirstDelinquency:'', dateLastActivity:'', status:'',
+    disputeStatus:'Not Started', lastDisputeDate:'',
     address:'', city:'', state:'', zip:'', phone:'',
     notes:'',
   }
@@ -778,12 +806,29 @@ function NegativeAccounts({ cid }) {
             <input type="date" value={value.dateOpened||''} onChange={e => onChange({ ...value, dateOpened: e.target.value })} />
           </div>
           <div className="form-group">
+            <label style={{ display:'flex', alignItems:'center', gap:5 }}>
+              Date of First Delinquency
+              <span title="Used to calculate the 7-year fall-off date (FCRA)" style={{ cursor:'help', color:'var(--text-faint)', fontSize:'0.7rem' }}>ⓘ</span>
+            </label>
+            <input type="date" value={value.dateFirstDelinquency||''} onChange={e => onChange({ ...value, dateFirstDelinquency: e.target.value })} />
+          </div>
+          <div className="form-group">
             <label>Last Activity</label>
             <input type="date" value={value.dateLastActivity||''} onChange={e => onChange({ ...value, dateLastActivity: e.target.value })} />
           </div>
           <div className="form-group">
-            <label>Status</label>
-            <input placeholder="e.g. Unpaid, Paid, In dispute" value={value.status||''} onChange={e => onChange({ ...value, status: e.target.value })} />
+            <label>Account Status</label>
+            <input placeholder="e.g. Unpaid, Paid, Transferred" value={value.status||''} onChange={e => onChange({ ...value, status: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label>Dispute Status</label>
+            <select value={value.disputeStatus||'Not Started'} onChange={e => onChange({ ...value, disputeStatus: e.target.value })}>
+              {NEG_DISPUTE_STATUSES.map(s => <option key={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Last Dispute Date</label>
+            <input type="date" value={value.lastDisputeDate||''} onChange={e => onChange({ ...value, lastDisputeDate: e.target.value })} />
           </div>
         </div>
 
@@ -892,10 +937,20 @@ function NegativeAccounts({ cid }) {
                         </span>
                       )}
                     </div>
-                    <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
+                    <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
                       {maxBalance > 0 && <span style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--red)' }}>${maxBalance.toLocaleString()}</span>}
                       {primary.dateOpened && <span style={{ fontSize:'0.75rem', color:'var(--text-muted)' }}>Opened {formatDate(primary.dateOpened)}</span>}
-                      {primary.status && <span style={{ fontSize:'0.72rem', color:'var(--text-muted)', fontStyle:'italic' }}>{primary.status}</span>}
+                      {(() => {
+                        const fo = calcFallOff(primary)
+                        if (!fo) return null
+                        const label = fallOffLabel(fo)
+                        const isPast = new Date(fo) < new Date()
+                        return <span style={{ fontSize:'0.72rem', color: isPast ? 'var(--green)' : 'var(--amber)', fontWeight:600 }}>📅 {label}</span>
+                      })()}
+                      {primary.disputeStatus && primary.disputeStatus !== 'Not Started' && (() => {
+                        const s = NEG_DISPUTE_COLORS[primary.disputeStatus] || NEG_DISPUTE_COLORS['Not Started']
+                        return <span style={{ fontSize:'0.65rem', fontWeight:700, padding:'2px 7px', borderRadius:4, background:s.bg, color:s.color, border:`1px solid ${s.border}` }}>{primary.disputeStatus}</span>
+                      })()}
                     </div>
                   </div>
                   <span style={{ color:'var(--pink)', fontSize:'0.75rem', flexShrink:0 }}>{isOpen ? '▲ Hide' : '▼ Details'}</span>
@@ -912,18 +967,56 @@ function NegativeAccounts({ cid }) {
                             Entry {gi+1} — {(a.bureaus||[]).join(' · ') || 'No bureau'}
                           </div>
                         )}
+                        {/* ── Fall-off / DOFD banner ── */}
+                        {(() => {
+                          const fo = calcFallOff(a)
+                          if (!fo) return null
+                          const isPast = new Date(fo) < new Date()
+                          return (
+                            <div style={{ display:'flex', gap:16, background: isPast ? '#EDFAF4' : '#FFFBEB', border:`1px solid ${isPast ? '#6EE7B7' : '#FDE68A'}`, borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, flexWrap:'wrap' }}>
+                              <div>
+                                <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color: isPast ? '#065F46' : '#92400E', fontWeight:700 }}>Date of First Delinquency</div>
+                                <div style={{ fontSize:'0.88rem', fontWeight:600, color:'var(--text)', marginTop:2 }}>{formatDate(a.dateFirstDelinquency)}</div>
+                              </div>
+                              <div>
+                                <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color: isPast ? '#065F46' : '#92400E', fontWeight:700 }}>Fall-off Date ({a.type === 'Bankruptcy' ? '10yr' : '7yr'})</div>
+                                <div style={{ fontSize:'0.88rem', fontWeight:600, color: isPast ? 'var(--green)' : 'var(--amber)', marginTop:2 }}>{formatDate(fo)} — {fallOffLabel(fo)}</div>
+                              </div>
+                            </div>
+                          )
+                        })()}
+
+                        {/* ── Dispute tracking ── */}
+                        {(() => {
+                          const ds = a.disputeStatus || 'Not Started'
+                          const s  = NEG_DISPUTE_COLORS[ds] || NEG_DISPUTE_COLORS['Not Started']
+                          return (
+                            <div style={{ display:'flex', gap:16, background:s.bg, border:`1px solid ${s.border}`, borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
+                              <div>
+                                <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:s.color, fontWeight:700 }}>Dispute Status</div>
+                                <div style={{ fontSize:'0.88rem', fontWeight:700, color:s.color, marginTop:2 }}>{ds}</div>
+                              </div>
+                              {a.lastDisputeDate && (
+                                <div>
+                                  <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:s.color, fontWeight:700 }}>Last Dispute Sent</div>
+                                  <div style={{ fontSize:'0.88rem', fontWeight:600, color:'var(--text)', marginTop:2 }}>{formatDate(a.lastDisputeDate)}</div>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()}
+
+                        {/* ── All fields grid ── */}
                         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px,1fr))', gap:'10px 24px', marginBottom:12 }}>
                           {[
-                            { label:'Creditor',          val: a.creditor },
-                            { label:'Original Creditor', val: a.originalCreditor },
-                            { label:'Account Number',    val: a.accountNumber },
-                            { label:'Type',              val: a.type },
-                            { label:'Balance',           val: a.balance > 0 ? `$${Number(a.balance).toLocaleString()}` : null },
-                            { label:'Status',            val: a.status },
-                            { label:'Date Opened',       val: a.dateOpened ? formatDate(a.dateOpened) : null },
-                            { label:'Last Activity',     val: a.dateLastActivity ? formatDate(a.dateLastActivity) : null },
-                            { label:'Phone',             val: a.phone },
-                            { label:'Address',           val: [a.address, a.city && `${a.city}, ${a.state} ${a.zip}`].filter(Boolean).join(' · ') || null },
+                            { label:'Creditor',               val: a.creditor },
+                            { label:'Original Creditor',      val: a.originalCreditor },
+                            { label:'Account Number',         val: a.accountNumber },
+                            { label:'Type',                   val: a.type },
+                            { label:'Balance',                val: a.balance > 0 ? `$${Number(a.balance).toLocaleString()}` : null },
+                            { label:'Account Status',         val: a.status },
+                            { label:'Date Opened',            val: a.dateOpened ? formatDate(a.dateOpened) : null },
+                            { label:'Last Activity',          val: a.dateLastActivity ? formatDate(a.dateLastActivity) : null },
                           ].filter(f => f.val).map(f => (
                             <div key={f.label}>
                               <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-faint)', fontWeight:600 }}>{f.label}</div>
@@ -931,7 +1024,28 @@ function NegativeAccounts({ cid }) {
                             </div>
                           ))}
                         </div>
-                        {/* Bureaus detail */}
+
+                        {/* ── Contact / address block ── */}
+                        {(a.address || a.phone || a.city) ? (
+                          <div style={{ background:'var(--surface-hover)', border:'1px solid var(--border-light)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12 }}>
+                            <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-faint)', fontWeight:700, marginBottom:8 }}>📍 Creditor Contact</div>
+                            <div style={{ display:'flex', gap:24, flexWrap:'wrap' }}>
+                              {(a.address || a.city) && (
+                                <div style={{ fontSize:'0.83rem', color:'var(--text)', lineHeight:1.6 }}>
+                                  {a.address && <div>{a.address}</div>}
+                                  {a.city && <div>{a.city}{a.state ? `, ${a.state}` : ''} {a.zip}</div>}
+                                </div>
+                              )}
+                              {a.phone && <div style={{ fontSize:'0.83rem', color:'var(--text)' }}>📞 {a.phone}</div>}
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ background:'var(--surface-hover)', border:'1px dashed var(--border)', borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:12, fontSize:'0.78rem', color:'var(--text-faint)' }}>
+                            📍 No address on file — click ✏️ Edit to add. Look up on Google or check the credit report PDF.
+                          </div>
+                        )}
+
+                        {/* ── Bureaus ── */}
                         <div style={{ display:'flex', gap:6, marginBottom:12, flexWrap:'wrap', alignItems:'center' }}>
                           <span style={{ fontSize:'0.68rem', color:'var(--text-muted)', fontWeight:600 }}>Reporting on:</span>
                           {(a.bureaus||[]).length > 0
