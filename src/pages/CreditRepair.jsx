@@ -47,6 +47,10 @@ function ScoreTracker({ cid }) {
   const [cards,     setCards]     = useLocalStorage(`credit_${cid}_cards`,     [])
   const [form,      setForm]      = useState({ date: today(), equifax: '', experian: '', transunion: '' })
 
+  // ── Inline row edit state ──
+  const [editingScoreId, setEditingScoreId] = useState(null)
+  const [editBuf,        setEditBuf]        = useState({})
+
   // ── Report upload state ──
   const [reportLoading, setReportLoading] = useState(false)
   const [reportError,   setReportError]   = useState('')
@@ -333,7 +337,7 @@ function ScoreTracker({ cid }) {
           <div className="card-header">
             <h3>Score History</h3>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Tip: upload one report per bureau to fill all 3 scores
+              Click ✏️ on any row to fill in missing bureau scores
             </span>
           </div>
           <div className="table-container">
@@ -341,16 +345,60 @@ function ScoreTracker({ cid }) {
               <thead><tr><th>Date</th><th>Equifax</th><th>Experian</th><th>TransUnion</th><th>Avg</th><th></th></tr></thead>
               <tbody>
                 {sorted.map(s => {
-                  const vals = [s.equifax, s.experian, s.transunion].filter(v => v > 0)
-                  const a    = vals.length ? Math.round(vals.reduce((x,y) => x+y,0) / vals.length) : null
-                  return (
+                  const vals    = [s.equifax, s.experian, s.transunion].filter(v => v > 0)
+                  const a       = vals.length ? Math.round(vals.reduce((x,y) => x+y,0) / vals.length) : null
+                  const editing = editingScoreId === s.id
+
+                  return editing ? (
+                    // ── Inline edit row ──
+                    <tr key={s.id} style={{ background: 'var(--pink-light)' }}>
+                      <td>
+                        <input type="date" defaultValue={s.date}
+                          onChange={e => setEditBuf(b => ({ ...b, date: e.target.value }))}
+                          style={{ fontSize: '0.8rem', padding: '3px 6px', width: 130 }} />
+                      </td>
+                      {['equifax','experian','transunion'].map(k => (
+                        <td key={k}>
+                          <input type="number" min="300" max="850" placeholder="—"
+                            defaultValue={s[k] || ''}
+                            onChange={e => setEditBuf(b => ({ ...b, [k]: e.target.value }))}
+                            style={{ fontSize: '0.8rem', padding: '3px 6px', width: 70, textAlign: 'center',
+                              fontWeight: 'bold', borderColor: 'var(--pink-border)' }} />
+                        </td>
+                      ))}
+                      <td />
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button className="btn btn-primary btn-sm" style={{ marginRight: 4 }}
+                          onClick={() => {
+                            setScores(scores.map(x => x.id !== s.id ? x : {
+                              ...x,
+                              date:       editBuf.date       ?? x.date,
+                              equifax:    editBuf.equifax    !== undefined ? (editBuf.equifax    ? Number(editBuf.equifax)    : null) : x.equifax,
+                              experian:   editBuf.experian   !== undefined ? (editBuf.experian   ? Number(editBuf.experian)   : null) : x.experian,
+                              transunion: editBuf.transunion !== undefined ? (editBuf.transunion ? Number(editBuf.transunion) : null) : x.transunion,
+                            }))
+                            setEditingScoreId(null)
+                            setEditBuf({})
+                          }}>
+                          Save
+                        </button>
+                        <button className="btn btn-sm" onClick={() => { setEditingScoreId(null); setEditBuf({}) }}>Cancel</button>
+                      </td>
+                    </tr>
+                  ) : (
+                    // ── Normal display row ──
                     <tr key={s.id}>
                       <td>{formatDate(s.date)}</td>
                       <td className={scoreColor(s.equifax)}>{s.equifax || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
                       <td className={scoreColor(s.experian)}>{s.experian || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
                       <td className={scoreColor(s.transunion)}>{s.transunion || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
                       <td className={`bold ${scoreColor(a)}`}>{a || <span style={{color:'var(--text-faint)',fontWeight:'normal'}}>—</span>}</td>
-                      <td><button className="btn btn-sm btn-danger" onClick={() => setScores(scores.filter(x => x.id !== s.id))}>×</button></td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        <button className="btn btn-sm" style={{ marginRight: 4 }}
+                          onClick={() => { setEditingScoreId(s.id); setEditBuf({}) }}>✏️</button>
+                        <button className="btn btn-sm btn-danger"
+                          onClick={() => setScores(scores.filter(x => x.id !== s.id))}>×</button>
+                      </td>
                     </tr>
                   )
                 })}
