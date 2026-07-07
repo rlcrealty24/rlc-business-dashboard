@@ -8,7 +8,7 @@ const DISPUTE_STATUSES     = ['Open', 'In Progress', 'Resolved', 'Closed']
 const NEGATIVE_TYPES       = ['Collection', 'Late Payment', 'Charge-off', 'Bankruptcy', 'Repossession', 'Judgment', 'Tax Lien', 'Other']
 const ACTION_PRIORITIES    = ['High', 'Medium', 'Low']
 const CLIENT_STATUSES      = ['Active', 'On Hold', 'Completed']
-const NEG_DISPUTE_STATUSES = ['Not Started', 'Letter Sent', 'Under Investigation', 'Verified by Bureau', 'Removed']
+const NEG_DISPUTE_STATUSES = ['Not Started', 'Letter Sent', 'Under Investigation', 'Verified by Bureau', 'Successfully Updated', 'Successfully Removed', 'Removed']
 
 // Negative items fall off 7 yrs from DOFD (10 yrs for Ch.7 Bankruptcy)
 function calcFallOff(a) {
@@ -30,6 +30,8 @@ const NEG_DISPUTE_COLORS = {
   'Letter Sent':         { bg:'#EEF2FF',              color:'#3730A3',            border:'#C7D2FE'       },
   'Under Investigation': { bg:'#FFFBEB',              color:'#92400E',            border:'#FDE68A'       },
   'Verified by Bureau':  { bg:'#FEF2F2',              color:'#991B1B',            border:'#FECACA'       },
+  'Successfully Updated':{ bg:'#EFF6FF',              color:'#1D4ED8',            border:'#BFDBFE'       },
+  'Successfully Removed':{ bg:'#F0FDF4',              color:'#15803D',            border:'#86EFAC'       },
   'Removed':             { bg:'#EDFAF4',              color:'#065F46',            border:'#6EE7B7'       },
 }
 
@@ -171,6 +173,7 @@ function ScoreTracker({ cid }) {
   // Items in profile NOT matched by anything on the new report
   const removedNegs = existingNegs.filter(n =>
     n.disputeStatus !== 'Removed' &&
+    n.disputeStatus !== 'Successfully Removed' &&
     !previewNegs.some(p => creditorsMatch(p.creditor, n.creditor))
   )
 
@@ -1109,7 +1112,7 @@ function NegativeAccounts({ cid }) {
             const isEditing  = editId === primary.id
 
             return (
-              <div key={primary.id} className="card" style={{ borderLeft:`4px solid ${allBureaus.length === 0 ? 'var(--border)' : allBureaus.length >= 3 ? 'var(--red)' : allBureaus.length === 2 ? 'var(--amber)' : 'var(--blue)'}`, overflow:'hidden' }}>
+              <div key={primary.id} className="card" style={{ borderLeft:`4px solid ${primary.disputeStatus === 'Successfully Removed' ? 'var(--green)' : primary.disputeStatus === 'Successfully Updated' ? 'var(--blue)' : allBureaus.length === 0 ? 'var(--border)' : allBureaus.length >= 3 ? 'var(--red)' : allBureaus.length === 2 ? 'var(--amber)' : 'var(--blue)'}`, overflow:'hidden', opacity: primary.disputeStatus === 'Successfully Removed' ? 0.6 : 1 }}>
 
                 {/* ── Summary row (always visible, click to expand) ── */}
                 <div
@@ -1190,9 +1193,15 @@ function NegativeAccounts({ cid }) {
                           const s  = NEG_DISPUTE_COLORS[ds] || NEG_DISPUTE_COLORS['Not Started']
                           return (
                             <div style={{ display:'flex', gap:16, background:s.bg, border:`1px solid ${s.border}`, borderRadius:'var(--radius)', padding:'10px 14px', marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
-                              <div>
-                                <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:s.color, fontWeight:700 }}>Dispute Status</div>
-                                <div style={{ fontSize:'0.88rem', fontWeight:700, color:s.color, marginTop:2 }}>{ds}</div>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:'0.6rem', textTransform:'uppercase', letterSpacing:'0.07em', color:s.color, fontWeight:700, marginBottom:4 }}>Dispute Status</div>
+                                <select
+                                  value={ds}
+                                  onChange={e => setAccounts(accounts.map(x => x.id === a.id ? { ...x, disputeStatus: e.target.value } : x))}
+                                  style={{ fontSize:'0.83rem', fontWeight:700, color:s.color, background:s.bg, border:`1px solid ${s.border}`, borderRadius:4, padding:'3px 8px', cursor:'pointer' }}
+                                >
+                                  {NEG_DISPUTE_STATUSES.map(st => <option key={st} value={st}>{st}</option>)}
+                                </select>
                               </div>
                               {a.lastDisputeDate && (
                                 <div>
