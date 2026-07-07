@@ -537,10 +537,22 @@ function ScoreTracker({ cid }) {
             <table>
               <thead><tr><th>Date</th><th>Equifax</th><th>Experian</th><th>TransUnion</th><th>Avg</th><th></th></tr></thead>
               <tbody>
-                {sorted.map(s => {
+                {sorted.map((s, si) => {
                   const vals    = [s.equifax, s.experian, s.transunion].filter(v => v > 0)
                   const a       = vals.length ? Math.round(vals.reduce((x,y) => x+y,0) / vals.length) : null
                   const editing = editingScoreId === s.id
+                  const prev    = sorted[si + 1]
+                  const delta   = (cur, prv) => (cur && prv) ? cur - prv : null
+                  const dEq = delta(s.equifax, prev?.equifax)
+                  const dEx = delta(s.experian, prev?.experian)
+                  const dTu = delta(s.transunion, prev?.transunion)
+                  const dAvg= (prev && a) ? a - calcAvg(prev) : null
+                  function DeltaBadge({ d }) {
+                    if (d === null) return null
+                    const pos = d > 0
+                    const zero = d === 0
+                    return <span style={{ fontSize:'0.65rem', fontWeight:700, marginLeft:5, color: zero ? 'var(--text-faint)' : pos ? 'var(--green)' : 'var(--red)' }}>{zero ? '—' : pos ? `+${d}` : d}</span>
+                  }
 
                   return editing ? (
                     // ── Inline edit row ──
@@ -582,10 +594,10 @@ function ScoreTracker({ cid }) {
                     // ── Normal display row ──
                     <tr key={s.id}>
                       <td>{formatDate(s.date)}</td>
-                      <td className={scoreColor(s.equifax)}>{s.equifax || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
-                      <td className={scoreColor(s.experian)}>{s.experian || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
-                      <td className={scoreColor(s.transunion)}>{s.transunion || <span style={{color:'var(--text-faint)'}}>—</span>}</td>
-                      <td className={`bold ${scoreColor(a)}`}>{a || <span style={{color:'var(--text-faint)',fontWeight:'normal'}}>—</span>}</td>
+                      <td className={scoreColor(s.equifax)}>{s.equifax || <span style={{color:'var(--text-faint)'}}>—</span>}<DeltaBadge d={dEq} /></td>
+                      <td className={scoreColor(s.experian)}>{s.experian || <span style={{color:'var(--text-faint)'}}>—</span>}<DeltaBadge d={dEx} /></td>
+                      <td className={scoreColor(s.transunion)}>{s.transunion || <span style={{color:'var(--text-faint)'}}>—</span>}<DeltaBadge d={dTu} /></td>
+                      <td className={`bold ${scoreColor(a)}`}>{a || <span style={{color:'var(--text-faint)',fontWeight:'normal'}}>—</span>}<DeltaBadge d={dAvg} /></td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <button className="btn btn-sm" style={{ marginRight: 4 }}
                           onClick={() => { setEditingScoreId(s.id); setEditBuf({}) }}>✏️</button>
@@ -609,11 +621,19 @@ function ScoreTracker({ cid }) {
 function Utilization({ cid }) {
   const [cards, setCards] = useLocalStorage(`credit_${cid}_cards`, [])
   const [form, setForm]   = useState({ name: '', balance: '', limit: '', bureau: '' })
+  const [payments, setPayments] = useState({})
 
   function save(e) {
     e.preventDefault()
     setCards([...cards, { ...form, id: uid(), balance: Number(form.balance), limit: Number(form.limit) }])
     setForm({ name: '', balance: '', limit: '', bureau: '' })
+  }
+
+  function applyPayment(id) {
+    const amt = Number(payments[id])
+    if (!amt || amt <= 0) return
+    setCards(cards.map(c => c.id === id ? { ...c, balance: Math.max(0, c.balance - amt) } : c))
+    setPayments(p => ({ ...p, [id]: '' }))
   }
 
   const totalBalance = cards.reduce((s, c) => s + c.balance, 0)
@@ -674,7 +694,7 @@ function Utilization({ cid }) {
           <div className="card-header"><h3>Cards &amp; Accounts ({cards.length})</h3></div>
           <div className="table-container">
             <table>
-              <thead><tr><th>Card / Account</th><th>Bureau</th><th>Balance</th><th>Limit</th><th>Utilization</th><th></th></tr></thead>
+              <thead><tr><th>Card / Account</th><th>Bureau</th><th>Balance</th><th>Limit</th><th>Utilization</th><th>Log Payment</th><th></th></tr></thead>
               <tbody>
                 {cards.map(c => {
                   const util = c.limit ? (c.balance / c.limit) * 100 : 0
@@ -691,6 +711,24 @@ function Utilization({ cid }) {
                         <span className={`bold ${utilColor(util)}`}>{formatPercent(util)}</span>
                         <div className="progress-bar mt-4" style={{ width: 100 }}>
                           <div className="progress-fill" style={{ width: `${Math.min(100, util)}%`, background: util > 50 ? 'var(--red)' : util > 30 ? 'var(--amber)' : 'var(--green)' }} />
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>$</span>
+                          <input
+                            type="number" min="0" step="0.01" placeholder="0.00"
+                            value={payments[c.id] || ''}
+                            onChange={e => setPayments(p => ({ ...p, [c.id]: e.target.value }))}
+                            onKeyDown={e => e.key === 'Enter' && applyPayment(c.id)}
+                            style={{ width: 80, padding: '2px 6px', fontSize: '0.8125rem' }}
+                          />
+                          <button
+                            className="btn btn-sm"
+                            style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #86EFAC', fontWeight: 700, padding: '2px 8px' }}
+                            onClick={() => applyPayment(c.id)}
+                            disabled={!payments[c.id]}
+                          >Apply</button>
                         </div>
                       </td>
                       <td><button className="btn btn-sm btn-danger" onClick={() => setCards(cards.filter(x => x.id !== c.id))}>×</button></td>
@@ -951,10 +989,12 @@ function NegativeAccounts({ cid }) {
     URL.revokeObjectURL(url)
   }
 
-  // ── Group accounts by fuzzy-normalized creditor name ─────────────────────
+  const RESOLVED_STATUSES = ['Successfully Removed', 'Successfully Updated']
+
+  // ── Group accounts by fuzzy-normalized creditor name (active only) ────────
   const groups = (() => {
     const buckets = []
-    accounts.forEach(a => {
+    accounts.filter(a => !RESOLVED_STATUSES.includes(a.disputeStatus)).forEach(a => {
       const bucket = buckets.find(b => creditorsMatch(b[0].creditor, a.creditor))
       if (bucket) bucket.push(a)
       else buckets.push([a])
@@ -1154,7 +1194,23 @@ function NegativeAccounts({ cid }) {
                       })()}
                     </div>
                   </div>
-                  <span style={{ color:'var(--pink)', fontSize:'0.75rem', flexShrink:0 }}>{isOpen ? '▲ Hide' : '▼ Details'}</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                    {primary.disputeStatus !== 'Successfully Removed' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setAccounts(accounts.map(x => x.id === primary.id ? { ...x, disputeStatus: 'Successfully Removed' } : x)) }}
+                        style={{ fontSize:'0.68rem', fontWeight:700, padding:'3px 8px', borderRadius:4, background:'#F0FDF4', color:'#15803D', border:'1px solid #86EFAC', cursor:'pointer', whiteSpace:'nowrap' }}
+                        title="Mark as successfully removed from credit report"
+                      >✓ Removed</button>
+                    )}
+                    {primary.disputeStatus !== 'Successfully Updated' && primary.disputeStatus !== 'Successfully Removed' && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setAccounts(accounts.map(x => x.id === primary.id ? { ...x, disputeStatus: 'Successfully Updated' } : x)) }}
+                        style={{ fontSize:'0.68rem', fontWeight:700, padding:'3px 8px', borderRadius:4, background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', cursor:'pointer', whiteSpace:'nowrap' }}
+                        title="Mark as successfully updated on credit report"
+                      >✓ Updated</button>
+                    )}
+                    <span style={{ color:'var(--pink)', fontSize:'0.75rem' }}>{isOpen ? '▲ Hide' : '▼ Details'}</span>
+                  </div>
                 </div>
 
                 {/* ── Expanded detail panel ── */}
@@ -1284,6 +1340,16 @@ function NegativeAccounts({ cid }) {
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, paddingTop:12, borderTop:'1px solid var(--border-light)' }}>
                       <button className="btn btn-primary btn-sm" onClick={() => downloadLetter(primary)}>📄 Dispute Letter</button>
                       <button className="btn btn-sm" onClick={() => { setEditId(primary.id); setEditForm({ ...primary }) }}>✏️ Edit</button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ background:'#F0FDF4', color:'#15803D', border:'1px solid #86EFAC', fontWeight:700 }}
+                        onClick={() => setAccounts(accounts.map(x => group.some(g => g.id === x.id) ? { ...x, disputeStatus: 'Successfully Removed' } : x))}
+                      >✅ Mark Removed</button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ background:'#EFF6FF', color:'#1D4ED8', border:'1px solid #BFDBFE', fontWeight:700 }}
+                        onClick={() => setAccounts(accounts.map(x => group.some(g => g.id === x.id) ? { ...x, disputeStatus: 'Successfully Updated' } : x))}
+                      >✅ Mark Updated</button>
                     </div>
                   </div>
                 )}
@@ -1375,6 +1441,80 @@ function NegativeAccounts({ cid }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Resolved / Wins ──────────────────────────────────────────────────────────
+function ResolvedAccounts({ cid }) {
+  const [accounts, setAccounts] = useLocalStorage(`credit_${cid}_negatives`, [])
+  const resolved = (Array.isArray(accounts) ? accounts : []).filter(a =>
+    a.disputeStatus === 'Successfully Removed' || a.disputeStatus === 'Successfully Updated'
+  )
+
+  function undoResolve(id) {
+    setAccounts(accounts.map(a => a.id === id ? { ...a, disputeStatus: 'Not Started' } : a))
+  }
+
+  if (resolved.length === 0) {
+    return (
+      <div>
+        <h2 style={{ marginBottom:6 }}>Wins 🏆</h2>
+        <div className="empty-state"><p>No items marked as removed or updated yet</p></div>
+      </div>
+    )
+  }
+
+  const removed = resolved.filter(a => a.disputeStatus === 'Successfully Removed')
+  const updated = resolved.filter(a => a.disputeStatus === 'Successfully Updated')
+
+  return (
+    <div>
+      <div className="flex-between mb-16">
+        <div>
+          <h2>Wins 🏆</h2>
+          <div style={{ fontSize:'0.78rem', color:'var(--text-muted)', marginTop:3 }}>
+            {removed.length > 0 && <span style={{ color:'var(--green)', fontWeight:600 }}>{removed.length} removed</span>}
+            {removed.length > 0 && updated.length > 0 && <span style={{ margin:'0 6px', color:'var(--text-faint)' }}>·</span>}
+            {updated.length > 0 && <span style={{ color:'var(--blue)', fontWeight:600 }}>{updated.length} updated</span>}
+            <span style={{ marginLeft:8 }}>Items successfully disputed off your report</span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        {resolved.map(a => {
+          const isRemoved = a.disputeStatus === 'Successfully Removed'
+          const color = isRemoved ? '#15803D' : '#1D4ED8'
+          const bg    = isRemoved ? '#F0FDF4' : '#EFF6FF'
+          const border= isRemoved ? '#86EFAC' : '#BFDBFE'
+          return (
+            <div key={a.id} className="card" style={{ borderLeft:`4px solid ${color}`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, padding:'14px 18px' }}>
+              <div style={{ flex:1 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
+                  <span style={{ fontWeight:700, fontSize:'0.95rem' }}>{a.creditor}</span>
+                  <span style={{ fontSize:'0.65rem', fontWeight:700, padding:'2px 7px', borderRadius:4, background:bg, color, border:`1px solid ${border}` }}>
+                    {isRemoved ? '✅ Successfully Removed' : '✅ Successfully Updated'}
+                  </span>
+                  {a.type && <span className={`badge ${a.type === 'Collection' || a.type === 'Charge-off' ? 'badge-red' : a.type === 'Late Payment' ? 'badge-amber' : 'badge-gray'}`}>{a.type}</span>}
+                </div>
+                <div style={{ display:'flex', gap:16, flexWrap:'wrap', fontSize:'0.75rem', color:'var(--text-muted)' }}>
+                  {a.balance > 0 && <span>Balance: <strong>{formatCurrency(a.balance)}</strong></span>}
+                  {a.dateFirstDelinquency && <span>DOFD: {formatDate(a.dateFirstDelinquency)}</span>}
+                  {a.bureaus?.length > 0 && <span>Bureaus: {a.bureaus.join(', ')}</span>}
+                  {a.notes && <span style={{ fontStyle:'italic' }}>{a.notes.split('\n').pop()}</span>}
+                </div>
+              </div>
+              <button
+                className="btn btn-sm"
+                style={{ flexShrink:0, fontSize:'0.68rem' }}
+                onClick={() => undoResolve(a.id)}
+                title="Move back to Negatives"
+              >↩ Undo</button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1790,6 +1930,7 @@ export default function CreditRepair() {
     { id: 'util',      label: '💳 Utilization' },
     { id: 'disputes',  label: '⚖️ Disputes' },
     { id: 'negatives',  label: '🚩 Negatives' },
+    { id: 'resolved',   label: '🏆 Wins' },
     { id: 'inquiries',  label: '🔍 Inquiries' },
     { id: 'actions',    label: '✅ Actions' },
   ]
@@ -1908,6 +2049,7 @@ export default function CreditRepair() {
             {tab === 'util'      && <Utilization       cid={client.id} />}
             {tab === 'disputes'  && <DisputeTracker    cid={client.id} />}
             {tab === 'negatives'  && <NegativeAccounts  cid={client.id} />}
+            {tab === 'resolved'   && <ResolvedAccounts  cid={client.id} />}
             {tab === 'inquiries'  && <HardInquiries     cid={client.id} />}
             {tab === 'actions'    && <ActionItems       cid={client.id} />}
           </div>
