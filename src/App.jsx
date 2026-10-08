@@ -7,13 +7,21 @@ import CreditRepair from './pages/CreditRepair.jsx'
 import PortalProject from './pages/PortalProject.jsx'
 import Fitness from './pages/Fitness.jsx'
 import BibleStudy from './pages/BibleStudy.jsx'
+import Today from './pages/Today.jsx'
+import CeoCalendar from './pages/CeoCalendar.jsx'
+import Inbox from './pages/Inbox.jsx'
+import Dates from './pages/Dates.jsx'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route index element={<Navigate to="/today" replace />} />
+          <Route path="today" element={<Today />} />
+          <Route path="calendar" element={<CeoCalendar />} />
+          <Route path="inbox" element={<Inbox />} />
+          <Route path="dates" element={<Dates />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="finance" element={<Finance />} />
           <Route path="real-estate" element={<RealEstate />} />
