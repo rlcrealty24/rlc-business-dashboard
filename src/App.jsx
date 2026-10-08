@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
-import Dashboard from './pages/Dashboard.jsx'
 import Finance from './pages/Finance.jsx'
 import RealEstate from './pages/RealEstate.jsx'
 import CreditRepair from './pages/CreditRepair.jsx'
@@ -22,7 +21,7 @@ export default function App() {
           <Route path="calendar" element={<CeoCalendar />} />
           <Route path="inbox" element={<Inbox />} />
           <Route path="dates" element={<Dates />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="dashboard" element={<Navigate to="/today" replace />} />
           <Route path="finance" element={<Finance />} />
           <Route path="real-estate" element={<RealEstate />} />
           <Route path="credit-repair" element={<CreditRepair />} />

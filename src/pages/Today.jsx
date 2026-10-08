@@ -9,6 +9,7 @@ import { Checklist, ItemBadges, Progress, Tick } from '../ceo/ui.jsx'
 import ItemSheet from '../ceo/ItemSheet.jsx'
 import { openCapture } from '../ceo/QuickCapture.jsx'
 import { PortalCard, PulseCard, SetupNeeded, StarterCard } from '../ceo/SetupCards.jsx'
+import { ImportantTasks, MoneyCard } from '../ceo/LifeCards.jsx'
 
 const live = i => i.status !== 'skipped' && !i.bumpedBy
 
@@ -169,6 +170,8 @@ export default function Today() {
             </div>
           </div>
 
+          <MoneyCard />
+          <ImportantTasks />
           <PulseCard />
 
           <div className="c-card">

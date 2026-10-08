@@ -25,7 +25,7 @@ function lifeItems(events, outlook, accounts, from, to) {
     out.push({
       key: `l:${e.id}`, source: 'life', category: 'personal', title: e.title || 'Event',
       date: e.date, start, end: start === null ? null : start + 60, allDay: start === null,
-      description: e.notes, reminders: start === null ? [] : [30], href: '/dashboard',
+      description: e.notes, reminders: start === null ? [] : [30],
     })
   }
   // Bills: dueDate is a day-of-month on liability accounts in Finance
