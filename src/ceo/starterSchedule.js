@@ -163,17 +163,7 @@ export function buildStarterBlocks() {
       description: 'Leave at 8:00, Sophia into kids club by 8:15, train for 1 hour. Today\'s workout is from your Fitness plan.',
       checklist: list('Gym bag + water + diaper bag', 'Sophia into kids club', 'Warm-up', 'Today\'s workout (see Fitness)', 'Log it in Fitness'),
     }),
-    block('Work Out of the House — Not a Break', 'business', [1, 5], '09:15', '09:50', {
-      description: 'This is a WORK block somewhere other than home (gym lounge / coffee shop) while Sophia is still in kids club. It is not a break.',
-      checklist: list(
-        'Sit down, laptop or phone open — no scrolling',
-        'Return 3 calls / texts',
-        'Approve anything waiting on you',
-        'Clear 10 emails',
-        'Drive home by 9:50 for nap',
-      ),
-    }),
-    block('Drive Home + Stroller Walk', 'sophia', [2], '09:15', '10:00', {
+    block('Drive Home + Stroller Walk', 'sophia', [1, 2, 5], '09:15', '10:00', {
       checklist: list('Drive home', 'Short stroller walk before nap'),
     }),
     block('Baby Bounce — Library (9:00)', 'sophia', [3], '08:45', '09:45', {
@@ -299,7 +289,18 @@ export function buildStarterBlocks() {
     block('Sophia Time — Play & Explore', 'sophia', [5], '14:30', '15:30', {
       checklist: list('Phone away', 'Play outside or a new place (library, store, park)'),
     }),
-    block('Messages & Admin Sweep', 'business', [1, 2, 3, 4], '15:00', '15:30', {
+    block('Work Out of the House — Not a Break', 'business', [1, 4], '14:30', '15:30', {
+      description: 'A WORK block somewhere other than home — coffee shop or the library kids\' area — with Sophia (stroller, snack, books, a toy). It is not a break. Light, interruptible work only: nothing that needs deep focus.',
+      checklist: list(
+        'Pack: laptop/phone charged, snack, water, 2 toys or books for Sophia',
+        'Sit down, phone or laptop open — no scrolling',
+        'Return 3 calls / texts (step outside with the stroller if needed)',
+        'Texts & DMs — reply or move to Inbox',
+        'Clear 10 emails · sign / approve anything waiting',
+        'Head home by 3:30 for the 4:00 walk',
+      ),
+    }),
+    block('Messages & Admin Sweep', 'business', [2, 3], '15:00', '15:30', {
       description: 'Light, interruptible work while Sophia plays nearby. Timer: 30 minutes, then stop.',
       checklist: list('Texts & DMs — reply or move to Inbox', 'Email — 2-minute rule', 'Sign / approve anything waiting', 'Capture anything new into the Inbox'),
     }),
