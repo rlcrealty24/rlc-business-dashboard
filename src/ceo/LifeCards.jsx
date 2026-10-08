@@ -121,7 +121,7 @@ export function ImportantTasks() {
       .filter(t => t.status !== 'Done')
       .filter(t => t.priority === 'High' || (t.dueDate && t.dueDate <= soon))
       .map(t => ({ key: `p${t.id}`, title: t.title || t.text, due: t.dueDate, prio: t.priority, from: 'Projects', href: '/portal-project',
-        complete: () => setProjectTasks(prev => list(prev).map(x => (x.id === t.id ? { ...x, status: 'Done' } : x))) })),
+        complete: () => setProjectTasks(prev => list(prev).map(x => (x.id === t.id ? { ...x, status: 'Done', completedAt: today } : x))) })),
   ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (PRIO_RANK[a.prio] ?? 3) - (PRIO_RANK[b.prio] ?? 3))
 
   return (

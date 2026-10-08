@@ -231,14 +231,16 @@ function Header({ onFocus, canFocus }) {
   )
 }
 
-function Top3({ tasks, today, saveTask, updateTask }) {
+function Top3({ tasks: all, today, saveTask, updateTask }) {
   const [text, setText] = useState('')
-  const done = tasks.filter(t => t.status === 'done').length
+  // Completed tasks drop off the list (they're marked done everywhere)
+  const done = all.filter(t => t.status === 'done').length
+  const tasks = all.filter(t => t.status !== 'done')
   return (
     <div className="c-card">
       <div className="c-card-head">
         <div className="c-card-title">Today&apos;s Top 3</div>
-        <span className="c-label">{done}/{tasks.length}</span>
+        <span className="c-label">{done ? `✓ ${done} done` : `${tasks.length}/3`}</span>
       </div>
       {tasks.map(t => (
         <div key={t.id} className="c-task" style={{ gridTemplateColumns: '22px 1fr auto' }}>

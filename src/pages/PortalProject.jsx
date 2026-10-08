@@ -330,7 +330,18 @@ function TaskBoard() {
     .filter(t=>filterType==='all'||t.taskType===filterType)
     .filter(t=>filterStatus==='all'||t.status===filterStatus)
 
-  const byStatus = TASK_STATUSES.reduce((acc,s)=>({...acc,[s]:shown.filter(t=>t.status===s)}),{})
+  // Completed tasks leave the board (they're also gone from Today) — see "Completed" below
+  const ACTIVE_STATUSES = TASK_STATUSES.filter(s=>s!=='Done')
+  const byStatus = ACTIVE_STATUSES.reduce((acc,s)=>({...acc,[s]:shown.filter(t=>t.status===s)}),{})
+  const completed = tasks.filter(t=>t.status==='Done').sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''))
+  const [showDone, setShowDone] = useState(false)
+
+  function complete(id) {
+    setTasks(prev=>(Array.isArray(prev)?prev:[]).map(t=>t.id===id?{...t,status:'Done',completedAt:today()}:t))
+  }
+  function reopen(id) {
+    setTasks(prev=>(Array.isArray(prev)?prev:[]).map(t=>t.id===id?{...t,status:'To Do',completedAt:''}:t))
+  }
 
   const statusBg       = { 'Done':'var(--green-bg)', 'In Progress':'var(--blue-bg)', 'To Do':'var(--pink-light)', 'Backlog':'var(--surface-hover)' }
   const statusColor    = { 'Done':'var(--green)', 'In Progress':'var(--blue)', 'To Do':'var(--pink)', 'Backlog':'var(--text-muted)' }
@@ -347,7 +358,7 @@ function TaskBoard() {
           </select>
           <select value={filterStatus} onChange={e=>setFS(e.target.value)} style={{fontSize:'0.8rem',padding:'4px 8px'}}>
             <option value="all">All Statuses</option>
-            {TASK_STATUSES.map(s=><option key={s}>{s}</option>)}
+            {TASK_STATUSES.filter(s=>s!=='Done').map(s=><option key={s}>{s}</option>)}
           </select>
           <button className="btn btn-primary btn-sm" onClick={()=>setNewForm(!newForm)}>{newForm?'Cancel':'+ Add Task'}</button>
         </div>
@@ -380,8 +391,8 @@ function TaskBoard() {
       )}
 
       {/* Kanban columns */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:16}}>
-        {TASK_STATUSES.map(status=>(
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(220px,1fr))',gap:16}}>
+        {ACTIVE_STATUSES.map(status=>(
           <div key={status}>
             <div style={{padding:'8px 14px',marginBottom:10,borderRadius:'var(--radius)',background:statusBg[status],border:`1px solid ${statusBorder[status]}`,fontSize:'0.74rem',textTransform:'uppercase',letterSpacing:'0.08em',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <span style={{fontWeight:600,color:statusColor[status]}}>{status}</span>
@@ -403,7 +414,12 @@ function TaskBoard() {
                     onClick={()=>setDet(t)}
                   >
                     <div className="card-body" style={{padding:'11px 13px'}}>
-                      <div className="text-sm bold" style={{marginBottom:6,lineHeight:1.3}}>{t.title}</div>
+                      <div style={{display:'flex',gap:8,alignItems:'flex-start',marginBottom:6}}>
+                        <button title="Mark complete" aria-label="Mark complete"
+                          onClick={e=>{e.stopPropagation();complete(t.id)}}
+                          style={{width:18,height:18,flexShrink:0,marginTop:1,border:'1.5px solid var(--ink)',background:'#fff',cursor:'pointer',padding:0}} />
+                        <div className="text-sm bold" style={{lineHeight:1.3}}>{t.title}</div>
+                      </div>
 
                       {/* Type + Priority */}
                       <div className="flex-gap" style={{flexWrap:'wrap',marginBottom:6}}>
@@ -437,6 +453,26 @@ function TaskBoard() {
           </div>
         ))}
       </div>
+
+      {/* Completed — hidden from the board, reopen if needed */}
+      {completed.length>0 && (
+        <div className="mt-24">
+          <button className="btn btn-sm" onClick={()=>setShowDone(v=>!v)}>{showDone?'Hide':'Show'} completed ({completed.length})</button>
+          {showDone && (
+            <div className="card mt-12">
+              {completed.map(t=>(
+                <div key={t.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 16px',borderBottom:'1px solid var(--border-light)'}}>
+                  <span className="text-green bold">✓</span>
+                  <span className="text-sm" style={{flex:1,textDecoration:'line-through',color:'var(--text-muted)'}}>{t.title}</span>
+                  {t.completedAt && <span className="text-xs text-muted">{formatDate(t.completedAt)}</span>}
+                  <button className="btn btn-sm" onClick={()=>reopen(t.id)}>Reopen</button>
+                  <button className="btn btn-sm btn-danger" onClick={()=>deleteTask(t.id)}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Task Detail Modal */}
       {detailTask && (

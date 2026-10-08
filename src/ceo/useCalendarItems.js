@@ -54,6 +54,7 @@ function lifeItems(events, outlook, accounts, from, to) {
 function taskItems(tasks, from, to) {
   const out = []
   for (const t of tasks) {
+    if (t.status === 'done') continue        // completed tasks come off the calendar too
     if (t.scheduled_date && t.scheduled_date >= from && t.scheduled_date <= to) {
       const start = toMin(t.scheduled_time)
       out.push({
