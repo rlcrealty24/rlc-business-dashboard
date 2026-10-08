@@ -104,23 +104,33 @@ function MacroBar({ label, value, target, color }) {
 }
 
 // ─── Tab: Overview ────────────────────────────────────────────────────────────
-function Overview({ logs = {}, weekly = [] }) {
-  // Latest daily weight
-  const logDates      = Object.keys(logs).filter(d => logs[d]?.weight).sort()
-  const latestDailyDate   = logDates[logDates.length - 1]
-  const latestDailyWeight = latestDailyDate ? parseFloat(logs[latestDailyDate].weight) : null
-  const prevDailyDate     = logDates.length >= 2 ? logDates[logDates.length - 2] : null
-  const prevDailyWeight   = prevDailyDate ? parseFloat(logs[prevDailyDate].weight) : null
+function useBodyGoals() {
+  const [goals, setGoals] = useLocalStorage('fitness_goals', { startWeight: BODY_STATS.startWeight, goalWeight: BODY_STATS.goalWeight })
+  return [{ startWeight: Number(goals?.startWeight) || BODY_STATS.startWeight, goalWeight: Number(goals?.goalWeight) || BODY_STATS.goalWeight }, setGoals]
+}
 
-  // Latest weekly weight (fallback)
-  const sortedWeekly      = [...weekly].filter(w => w.weight).sort((a,b) => a.date > b.date ? 1 : -1)
-  const latestWeeklyWeight = sortedWeekly.length ? parseFloat(sortedWeekly[sortedWeekly.length - 1].weight) : null
+/** Every weigh-in from the Daily Log and Weekly Stats, newest first */
+function weightEntries(logs, weekly) {
+  const daily = Object.keys(logs || {})
+    .filter(d => logs[d]?.weight && !isNaN(parseFloat(logs[d].weight)))
+    .map(d => ({ key: `d:${d}`, source: 'daily', date: d, weight: parseFloat(logs[d].weight) }))
+  const wk = (Array.isArray(weekly) ? weekly : [])
+    .filter(w => w.weight && !isNaN(parseFloat(w.weight)))
+    .map(w => ({ key: `w:${w.id}`, source: 'weekly', id: w.id, date: w.date, weight: parseFloat(w.weight) }))
+  return [...daily, ...wk].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+}
 
-  const currentWeight = latestDailyWeight ?? latestWeeklyWeight
-  const lostTotal     = currentWeight ? (BODY_STATS.startWeight - currentWeight).toFixed(1) : null
-  const toGoal        = currentWeight ? (currentWeight - BODY_STATS.goalWeight).toFixed(1) : null
-  const progressPct   = currentWeight ? Math.max(0, Math.min(100, (parseFloat(lostTotal) / (BODY_STATS.startWeight - BODY_STATS.goalWeight)) * 100)) : 0
-  const recentChange  = latestDailyWeight && prevDailyWeight ? (latestDailyWeight - prevDailyWeight).toFixed(1) : null
+function Overview({ logs = {}, weekly = [], setLogs, setWeekly }) {
+  const [goals, setGoals] = useBodyGoals()
+  const entries       = weightEntries(logs, weekly)
+  const currentWeight = entries[0]?.weight ?? null
+  const latestDate    = entries[0]?.date
+  const prevWeight    = entries[1]?.weight ?? null
+  const goalSpan      = goals.startWeight - goals.goalWeight
+  const lostTotal     = currentWeight ? (goals.startWeight - currentWeight).toFixed(1) : null
+  const toGoal        = currentWeight ? (currentWeight - goals.goalWeight).toFixed(1) : null
+  const progressPct   = currentWeight && goalSpan > 0 ? Math.max(0, Math.min(100, (parseFloat(lostTotal) / goalSpan) * 100)) : 0
+  const recentChange  = currentWeight && prevWeight ? (currentWeight - prevWeight).toFixed(1) : null
 
   return (
     <div>
@@ -130,7 +140,7 @@ function Overview({ logs = {}, weekly = [] }) {
           Postpartum Transformation — 6–8 Week Plan
         </div>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: 4, color: 'var(--pink)' }}>Strong, Toned &amp; Confident 🌸</h1>
-        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Glute &amp; Body Recomposition · 5×/week · −18.8 lbs goal</div>
+        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Glute &amp; Body Recomposition · 5×/week · −{goalSpan.toFixed(1)} lbs goal</div>
       </div>
 
       {/* Body comp stats — live weight */}
@@ -144,7 +154,7 @@ function Overview({ logs = {}, weekly = [] }) {
             ? <div className={`metric-change ${parseFloat(recentChange) < 0 ? 'positive' : parseFloat(recentChange) > 0 ? 'negative' : 'neutral'}`}>
                 {parseFloat(recentChange) > 0 ? '+' : ''}{recentChange} lbs recently
               </div>
-            : <div className="metric-change neutral">{currentWeight ? `as of ${new Date(latestDailyDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}` : 'Log in Daily Log'}</div>
+            : <div className="metric-change neutral">{currentWeight ? `as of ${new Date(latestDate + 'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}` : 'Log a weigh-in below'}</div>
           }
         </div>
         <div className="metric-card metric-card-income">
@@ -152,7 +162,7 @@ function Overview({ logs = {}, weekly = [] }) {
           <div className={`metric-value ${lostTotal && parseFloat(lostTotal) > 0 ? 'value-positive' : ''}`}>
             {lostTotal && parseFloat(lostTotal) > 0 ? <>−{lostTotal} <span style={{ fontSize:'1rem' }}>lb</span></> : <span style={{ fontSize:'1.1rem', color:'var(--text-faint)' }}>—</span>}
           </div>
-          <div className="metric-change neutral">from {BODY_STATS.startWeight} lb start</div>
+          <div className="metric-change neutral">from {goals.startWeight} lb start</div>
         </div>
         <div className="metric-card metric-card-pending">
           <div className="metric-label">🎯 To Goal</div>
@@ -163,12 +173,12 @@ function Overview({ logs = {}, weekly = [] }) {
                 ? <span style={{ fontSize:'1.3rem' }}>🎉</span>
                 : <span style={{ fontSize:'1.1rem', color:'var(--text-faint)' }}>—</span>}
           </div>
-          <div className="metric-change neutral">goal: {BODY_STATS.goalWeight} lb</div>
+          <div className="metric-change neutral">goal: {goals.goalWeight} lb</div>
         </div>
         <div className="metric-card metric-card-expense">
           <div className="metric-label">🏁 Start Weight</div>
-          <div className="metric-value">148.8 <span style={{ fontSize: '1rem' }}>lb</span></div>
-          <div className="metric-change neutral">−18.8 lbs total goal</div>
+          <div className="metric-value">{goals.startWeight} <span style={{ fontSize: '1rem' }}>lb</span></div>
+          <div className="metric-change neutral">−{goalSpan.toFixed(1)} lbs total goal</div>
         </div>
       </div>
 
@@ -177,25 +187,27 @@ function Overview({ logs = {}, weekly = [] }) {
         <div className="card mb-24">
           <div className="card-body">
             <div className="flex-between text-sm mb-8">
-              <span className="text-muted">Start: <strong style={{ color:'var(--text)' }}>{BODY_STATS.startWeight} lb</strong></span>
+              <span className="text-muted">Start: <strong style={{ color:'var(--text)' }}>{goals.startWeight} lb</strong></span>
               <span style={{ color:'var(--pink-text)', fontWeight:'bold' }}>Now: {currentWeight} lb</span>
-              <span className="text-muted">Goal: <strong className="text-green">{BODY_STATS.goalWeight} lb</strong></span>
+              <span className="text-muted">Goal: <strong className="text-green">{goals.goalWeight} lb</strong></span>
             </div>
             <div className="progress-bar" style={{ height: 10 }}>
               <div className="progress-fill" style={{ width:`${progressPct}%`, background:'linear-gradient(90deg, var(--pink), var(--green))' }} />
             </div>
             <div className="text-xs text-muted mt-8 text-right">
-              {lostTotal} of {BODY_STATS.startWeight - BODY_STATS.goalWeight} lbs lost — {progressPct.toFixed(0)}% of the way there 🌸
+              {lostTotal} of {goalSpan.toFixed(1)} lbs lost — {progressPct.toFixed(0)}% of the way there 🌸
             </div>
           </div>
         </div>
       ) : (
         <div className="card mb-24" style={{ borderLeft:'3px solid var(--pink-soft)' }}>
           <div className="card-body" style={{ textAlign:'center', color:'var(--text-muted)', fontSize:'0.85rem', padding:'16px' }}>
-            Log your weight in <strong>Daily Log</strong> to see your progress here 📊
+            Log a weigh-in below to see your progress here 📊
           </div>
         </div>
       )}
+
+      <WeighInCard logs={logs} weekly={weekly} setLogs={setLogs} setWeekly={setWeekly} entries={entries} goals={goals} setGoals={setGoals} />
 
       <div className="section-grid">
         {/* Macro targets */}
@@ -260,6 +272,133 @@ function Overview({ logs = {}, weekly = [] }) {
 }
 
 // ─── Tab: Workout Plan ────────────────────────────────────────────────────────
+// ─── Weigh-ins: log, edit, delete + start/goal weights ──────────────────────
+function WeighInCard({ logs, weekly, setLogs, setWeekly, entries, goals, setGoals }) {
+  const [date, setDate]       = useState(today())
+  const [weight, setWeight]   = useState('')
+  const [editKey, setEditKey] = useState(null)
+  const [editVal, setEditVal] = useState({ date: '', weight: '' })
+  const [showAll, setShowAll] = useState(false)
+  const [editGoals, setEditGoals] = useState(false)
+  const [goalForm, setGoalForm]   = useState(goals)
+
+  function setDailyWeight(d, w) {
+    setLogs(prev => {
+      const cur = prev || {}
+      return { ...cur, [d]: { ...emptyLog(), ...(cur[d] || {}), weight: w } }
+    })
+  }
+  function add(e) {
+    e.preventDefault()
+    const w = Math.round(parseFloat(weight) * 10) / 10
+    if (!date || isNaN(w) || w <= 0) return
+    setDailyWeight(date, String(w))
+    setWeight('')
+  }
+  function saveEdit(entry) {
+    const w = Math.round(parseFloat(editVal.weight) * 10) / 10
+    if (isNaN(w) || w <= 0 || !editVal.date) return
+    if (entry.source === 'daily') {
+      setLogs(prev => {
+        const cur = { ...(prev || {}) }
+        if (editVal.date !== entry.date) cur[entry.date] = { ...cur[entry.date], weight: '' }
+        cur[editVal.date] = { ...emptyLog(), ...(cur[editVal.date] || {}), weight: String(w) }
+        return cur
+      })
+    } else {
+      setWeekly(prev => (Array.isArray(prev) ? prev : []).map(x => x.id === entry.id ? { ...x, weight: String(w), date: editVal.date } : x))
+    }
+    setEditKey(null)
+  }
+  function remove(entry) {
+    if (!window.confirm(`Delete the ${entry.weight} lb weigh-in from ${fmtShort(entry.date)}?`)) return
+    if (entry.source === 'daily') setDailyWeight(entry.date, '')
+    else setWeekly(prev => (Array.isArray(prev) ? prev : []).map(x => x.id === entry.id ? { ...x, weight: '' } : x))
+  }
+  const fmtShort = d => new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const shown = showAll ? entries : entries.slice(0, 6)
+
+  return (
+    <div className="card mb-24">
+      <div className="card-header">
+        <h3>⚖️ Weigh-ins</h3>
+        <button className="btn btn-sm" onClick={() => { setGoalForm(goals); setEditGoals(v => !v) }}>
+          {editGoals ? 'Close' : 'Edit start & goal'}
+        </button>
+      </div>
+      <div className="card-body">
+        {editGoals && (
+          <form onSubmit={e => {
+            e.preventDefault()
+            const sw = parseFloat(goalForm.startWeight), gw = parseFloat(goalForm.goalWeight)
+            if (isNaN(sw) || isNaN(gw)) return
+            setGoals({ startWeight: sw, goalWeight: gw }); setEditGoals(false)
+          }} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 18, paddingBottom: 18, borderBottom: '1px solid var(--border-light)' }}>
+            <div className="form-group"><label>Start weight (lb)</label>
+              <input type="number" step="0.1" value={goalForm.startWeight} onChange={e => setGoalForm({ ...goalForm, startWeight: e.target.value })} style={{ width: 130 }} /></div>
+            <div className="form-group"><label>Goal weight (lb)</label>
+              <input type="number" step="0.1" value={goalForm.goalWeight} onChange={e => setGoalForm({ ...goalForm, goalWeight: e.target.value })} style={{ width: 130 }} /></div>
+            <button type="submit" className="btn btn-primary btn-sm">Save</button>
+          </form>
+        )}
+
+        <form onSubmit={add} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: 16 }}>
+          <div className="form-group"><label>Date</label>
+            <input type="date" value={date} max={today()} onChange={e => setDate(e.target.value)} style={{ width: 160 }} /></div>
+          <div className="form-group"><label>Weight (lb)</label>
+            <input type="number" step="0.1" min="50" placeholder={entries[0] ? String(entries[0].weight) : '140.0'} value={weight} onChange={e => setWeight(e.target.value)} style={{ width: 130 }} /></div>
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!weight}>Log weight</button>
+          {logs?.[date]?.weight && <span className="text-xs text-muted" style={{ paddingBottom: 8 }}>Replaces {logs[date].weight} lb on this date</span>}
+        </form>
+
+        {entries.length === 0 && <div className="empty-state" style={{ padding: '12px 0' }}><p>No weigh-ins yet.</p></div>}
+        {entries.length > 0 && (
+          <div className="table-container">
+            <table>
+              <thead><tr><th>Date</th><th>Weight</th><th>Change</th><th>From</th><th></th></tr></thead>
+              <tbody>
+                {shown.map((en, i) => {
+                  const prev = entries[i + 1]
+                  const diff = prev ? (en.weight - prev.weight).toFixed(1) : null
+                  const editing = editKey === en.key
+                  return (
+                    <tr key={en.key}>
+                      <td>{editing
+                        ? <input type="date" value={editVal.date} max={today()} onChange={e => setEditVal({ ...editVal, date: e.target.value })} style={{ width: 150 }} />
+                        : fmtShort(en.date)}</td>
+                      <td>{editing
+                        ? <input type="number" step="0.1" autoFocus onFocus={e => e.target.select()} value={editVal.weight} onChange={e => setEditVal({ ...editVal, weight: e.target.value })}
+                            onKeyDown={e => { if (e.key === 'Enter') saveEdit(en); if (e.key === 'Escape') setEditKey(null) }} style={{ width: 100 }} />
+                        : <strong>{en.weight} lb</strong>}</td>
+                      <td>{diff !== null && !editing && (
+                        <span className={parseFloat(diff) < 0 ? 'text-green' : parseFloat(diff) > 0 ? 'text-red' : 'text-muted'}>
+                          {parseFloat(diff) > 0 ? '+' : ''}{diff}
+                        </span>)}</td>
+                      <td className="text-xs text-muted">{en.source === 'daily' ? 'Daily log' : 'Weekly stats'}</td>
+                      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                        {editing ? <>
+                          <button className="btn btn-sm btn-primary" onClick={() => saveEdit(en)}>Save</button>{' '}
+                          <button className="btn btn-sm" onClick={() => setEditKey(null)}>Cancel</button>
+                        </> : <>
+                          <button className="btn btn-sm" onClick={() => { setEditKey(en.key); setEditVal({ date: en.date, weight: String(en.weight) }) }}>Edit</button>{' '}
+                          <button className="btn btn-sm btn-danger" onClick={() => remove(en)}>×</button>
+                        </>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {entries.length > 6 && (
+          <button className="btn btn-sm mt-12" onClick={() => setShowAll(v => !v)}>{showAll ? 'Show fewer' : `Show all ${entries.length}`}</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function WorkoutPlanTab() {
   const todayDow = new Date().getDay()
   const [open, setOpen] = useState(new Set([todayDow]))
@@ -820,6 +959,7 @@ function MealSection({ meal, emoji, foods, onAddClick, onRemove, onUpdateServing
 
 // ─── Tab: Daily Log ───────────────────────────────────────────────────────────
 function DailyLogTab({ logs, setLogs }) {
+  const [goals] = useBodyGoals()
   const [selectedDate, setSelectedDate] = useState(today)
   const dateKey    = selectedDate
   const log        = logs[dateKey] || emptyLog()
@@ -1056,8 +1196,8 @@ function DailyLogTab({ logs, setLogs }) {
         const prevDate    = sortedDates[sortedDates.length - 1]
         const prevWeight  = prevDate ? parseFloat(logs[prevDate].weight) : null
         const diff        = currWeight && prevWeight ? (currWeight - prevWeight).toFixed(1) : null
-        const lostTotal   = currWeight ? (BODY_STATS.startWeight - currWeight).toFixed(1) : null
-        const toGoal      = currWeight ? (currWeight - BODY_STATS.goalWeight).toFixed(1) : null
+        const lostTotal   = currWeight ? (goals.startWeight - currWeight).toFixed(1) : null
+        const toGoal      = currWeight ? (currWeight - goals.goalWeight).toFixed(1) : null
         return (
           <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', padding:'14px 18px', marginBottom:20, display:'flex', alignItems:'center', gap:14, flexWrap:'wrap', boxShadow:'var(--shadow)' }}>
             <span style={{ fontSize:'0.7rem', fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.08em', whiteSpace:'nowrap', flexShrink:0 }}>⚖️ {isToday ? "Today's Weight" : "Weight"}</span>
@@ -1308,8 +1448,9 @@ function WeeklyStatsTab({ weekly, setWeekly }) {
   }
 
   const latestWeight = weekly.length ? weekly[weekly.length - 1].weight : null
-  const totalLost    = latestWeight ? (BODY_STATS.startWeight - parseFloat(latestWeight)).toFixed(1) : null
-  const toGoal       = latestWeight ? (parseFloat(latestWeight) - BODY_STATS.goalWeight).toFixed(1) : null
+  const [goals]      = useBodyGoals()
+  const totalLost    = latestWeight ? (goals.startWeight - parseFloat(latestWeight)).toFixed(1) : null
+  const toGoal       = latestWeight ? (parseFloat(latestWeight) - goals.goalWeight).toFixed(1) : null
 
   return (
     <div>
@@ -1452,7 +1593,7 @@ export default function Fitness() {
       <div className="tabs">
         {TABS.map(t => <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
-      {tab === 'overview' && <Overview logs={logs} weekly={weekly} />}
+      {tab === 'overview' && <Overview logs={logs} weekly={weekly} setLogs={setLogs} setWeekly={setWeekly} />}
       {tab === 'plan'     && <WorkoutPlanTab />}
       {tab === 'daily'    && <DailyLogTab logs={logs} setLogs={setLogs} />}
       {tab === 'weekly'   && <WeeklyStatsTab weekly={weekly} setWeekly={setWeekly} />}

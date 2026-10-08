@@ -31,7 +31,7 @@ const PHASE_COLORS = {
 function pc(phaseId) { return PHASE_COLORS[phaseId] || PHASE_COLORS[1] }
 
 // Today's YYYY-MM-DD string
-function today() { return new Date().toISOString().slice(0, 10) }
+function today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 // Compute streak: returns updated streak + lastDate
 function computeStreak(prev) {
