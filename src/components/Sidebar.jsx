@@ -1,10 +1,22 @@
 import { useState, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { useCeo } from '../ceo/CeoStore.jsx'
+
+const ico = d => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
+)
+
+const CEO_NAV = [
+  { path: '/today',    label: 'Today',    icon: ico(<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></>) },
+  { path: '/calendar', label: 'Calendar', icon: ico(<><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></>) },
+  { path: '/inbox',    label: 'Inbox',    icon: ico(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>) },
+  { path: '/dates',    label: 'Dates & Reminders', icon: ico(<><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>) },
+]
 
 const NAV = [
   {
     path: '/dashboard',
-    label: 'Dashboard',
+    label: 'Life Overview',
     icon: (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
@@ -71,16 +83,27 @@ const NAV = [
 
 function getGreeting() {
   const h = new Date().getHours()
-  if (h < 12) return '☀️ Morning'
-  if (h < 17) return '🌸 Afternoon'
-  return '🌙 Evening'
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function NavItem({ path, label, icon, badge, onClose, active }) {
+  return (
+    <NavLink to={path} onClick={onClose} className={`rlc-nav${active ? ' active' : ''}`}>
+      <span className="rlc-nav-ico">{icon}</span>
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge > 0 && <span className="rlc-nav-badge">{badge}</span>}
+    </NavLink>
+  )
 }
 
 export default function Sidebar({ open = true, onClose = () => {} }) {
   const [photo, setPhoto] = useState(() => localStorage.getItem('profile_photo') || null)
-  const [hovered, setHovered] = useState(null)
   const fileRef = useRef(null)
   const location = useLocation()
+  const { tasks } = useCeo()
+  const inboxCount = tasks.filter(t => t.status === 'inbox').length
 
   function handlePhoto(e) {
     const file = e.target.files[0]
@@ -95,148 +118,39 @@ export default function Sidebar({ open = true, onClose = () => {} }) {
   }
 
   return (
-    <aside className={`sidebar${open ? ' open' : ''}`} style={{
-      width: 'var(--sidebar-width)',
-      minWidth: 'var(--sidebar-width)',
-      background: '#FFFFFF',
-      borderRight: '1px solid #FFD6E0',
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100vh',
-      position: 'sticky',
-      top: 0,
-    }}>
-
+    <aside className={`sidebar rlc-sidebar${open ? ' open' : ''}`}>
       {/* ── Brand ──────────────────────────────────────────── */}
-      <div style={{
-        padding: '20px 18px 16px',
-        borderBottom: '1px solid #FFE4EC',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #E8547A 0%, #C73D63 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            boxShadow: '0 4px 14px rgba(232,84,122,0.30)',
-          }}>
-            <span style={{ fontSize: '1rem', lineHeight: 1 }}>🌸</span>
-          </div>
-          <div>
-            <div style={{ color: '#E8547A', fontWeight: 700, fontSize: '0.92rem', letterSpacing: '-0.02em' }}>
-              RLC Dashboard
-            </div>
-            <div style={{ color: '#B87A8A', fontSize: '0.65rem', marginTop: 2 }}>
-              Life · Business · Faith
-            </div>
-          </div>
-        </div>
+      <div className="rlc-brand">
+        <img src="/rlc-logo.png" alt="RLC Realty Co." />
+        <div className="rlc-brand-sub">CEO Command Center</div>
+      </div>
 
-        {/* Profile */}
-        <div
-          onClick={() => fileRef.current?.click()}
-          title="Click to update photo"
-          style={{
-            background: '#FFF5F7',
-            border: '1px solid #FFD6E0',
-            borderRadius: 10,
-            padding: '10px 12px',
-            display: 'flex', alignItems: 'center', gap: 10,
-            cursor: 'pointer', transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = '#FFF0F3'}
-          onMouseLeave={e => e.currentTarget.style.background = '#FFF5F7'}
-        >
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            overflow: 'hidden', flexShrink: 0,
-            background: 'linear-gradient(135deg, #E8547A 0%, #C73D63 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '2px solid #FFD6E0',
-          }}>
-            {photo
-              ? <img src={photo} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ color: '#fff', fontSize: '0.78rem', fontWeight: 700 }}>RC</span>
-            }
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              color: '#2D1B25', fontWeight: 600, fontSize: '0.83rem',
-              letterSpacing: '-0.01em', whiteSpace: 'nowrap',
-              overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-              Royanna Carbajal
-            </div>
-            <div style={{ color: '#B87A8A', fontSize: '0.67rem', marginTop: 2 }}>
-              {getGreeting()}
-            </div>
-          </div>
+      {/* Profile */}
+      <div className="rlc-profile" onClick={() => fileRef.current?.click()} title="Click to update photo">
+        <div className="rlc-avatar">
+          {photo ? <img src={photo} alt="Profile" /> : <span>RC</span>}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" onChange={handlePhoto} style={{ display: 'none' }} />
+        <div style={{ minWidth: 0 }}>
+          <div className="rlc-profile-name">Royanna Carbajal</div>
+          <div className="rlc-profile-sub">{getGreeting()}</div>
         </div>
       </div>
 
       {/* ── Navigation ─────────────────────────────────────── */}
-      <nav style={{
-        flex: 1, padding: '10px 10px',
-        display: 'flex', flexDirection: 'column', gap: 2,
-        overflowY: 'auto',
-      }}>
-        <div style={{
-          padding: '6px 8px 6px',
-          fontSize: '0.6rem', fontWeight: 700,
-          letterSpacing: '0.1em', color: '#D4A8B4',
-          textTransform: 'uppercase',
-        }}>
-          Navigation
-        </div>
-
-        {NAV.map(({ path, label, icon }) => {
-          const isActive = location.pathname === path
-          const isHov    = hovered === path
-
-          return (
-            <NavLink
-              key={path}
-              to={path}
-              onClick={onClose}
-              onMouseEnter={() => setHovered(path)}
-              onMouseLeave={() => setHovered(null)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                padding: '9px 10px 9px 12px',
-                borderRadius: 9, textDecoration: 'none',
-                fontSize: '0.86rem',
-                fontWeight: isActive ? 600 : 400,
-                color: isActive ? '#E8547A' : isHov ? '#3D2C35' : '#6B4C55',
-                background: isActive ? '#FFF0F3' : isHov ? '#FFF5F7' : 'transparent',
-                borderLeft: isActive ? '3px solid #E8547A' : '3px solid transparent',
-                transition: 'all 0.15s ease',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              <span style={{
-                color: isActive ? '#E8547A' : isHov ? '#B87A8A' : '#C4A8B0',
-                flexShrink: 0, transition: 'color 0.15s',
-              }}>
-                {icon}
-              </span>
-              {label}
-            </NavLink>
-          )
-        })}
+      <nav className="rlc-navlist">
+        <div className="rlc-nav-section">CEO</div>
+        {CEO_NAV.map(n => (
+          <NavItem key={n.path} {...n} onClose={onClose} active={location.pathname === n.path}
+            badge={n.path === '/inbox' ? inboxCount : 0} />
+        ))}
+        <div className="rlc-nav-section" style={{ marginTop: 14 }}>Life &amp; Money</div>
+        {NAV.map(n => <NavItem key={n.path} {...n} onClose={onClose} active={location.pathname === n.path} />)}
       </nav>
 
-      {/* ── Footer ─────────────────────────────────────────── */}
-      <div style={{
-        padding: '12px 18px',
-        borderTop: '1px solid #FFE4EC',
-        flexShrink: 0,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.68rem', color: '#D4A8B4' }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2D9E6B', flexShrink: 0, boxShadow: '0 0 5px rgba(45,158,107,0.6)' }} />
-          All systems running
-        </div>
+      <div className="rlc-side-foot">
+        <span>Leadership in every deal.</span>
+        <span>Loyalty in every move.</span>
       </div>
     </aside>
   )

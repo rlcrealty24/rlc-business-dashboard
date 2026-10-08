@@ -125,7 +125,7 @@ function Overview({ logs = {}, weekly = [] }) {
   return (
     <div>
       {/* Hero banner */}
-      <div style={{ background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 60%, #FFF5F7 100%)', borderRadius: 16, padding: '24px 30px', marginBottom: 24, border: '1px solid var(--pink-border)', boxShadow: '0 2px 16px rgba(232,84,122,0.07)' }}>
+      <div style={{ background: 'linear-gradient(135deg, #eef9fe 0%, #e5e5e5 60%, #fafafa 100%)', borderRadius: 16, padding: '24px 30px', marginBottom: 24, border: '1px solid var(--pink-border)', boxShadow: '0 2px 16px rgba(28,159,208,0.07)' }}>
         <div style={{ fontSize: '0.65rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, fontWeight: 600 }}>
           Postpartum Transformation — 6–8 Week Plan
         </div>
@@ -204,7 +204,7 @@ function Overview({ logs = {}, weekly = [] }) {
           <div className="card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
               {[
-                { val: '1,400', unit: 'cal',  label: 'Calories',  note: '~500 deficit from TDEE', bg: '#FCE4EC', border:'#F4A0B5', color:'#C73D63' },
+                { val: '1,400', unit: 'cal',  label: 'Calories',  note: '~500 deficit from TDEE', bg: '#FCE4EC', border:'#F4A0B5', color:'#0a0a0a' },
                 { val: '145',   unit: 'g',    label: 'Protein',   note: '~1.7g per lb lean mass', bg: '#E3F2FD', border:'#BBDEFB', color:'#1565C0' },
                 { val: '130',   unit: 'g',    label: 'Carbs',     note: 'Timed around workouts',  bg: '#FFF3E0', border:'#FFD9A0', color:'#B45309' },
                 { val: '42',    unit: 'g',    label: 'Fat',       note: 'Avocado, olive oil, nuts',bg: '#F3E8FF', border:'#D9B8FF', color:'#7C3AED' },
@@ -943,12 +943,12 @@ function DailyLogTab({ logs, setLogs }) {
 
   // Macro config with fiber/sugar targets
   const NUTRIENT_TARGETS = [
-    { key: 'cal',     label: 'Calories', target: MACRO_TARGETS.cal,     unit: '',  color: '#E8547A',     bgColor: '#FCE4EC' },
+    { key: 'cal',     label: 'Calories', target: MACRO_TARGETS.cal,     unit: '',  color: '#1c9fd0',     bgColor: '#FCE4EC' },
     { key: 'protein', label: 'Protein',  target: MACRO_TARGETS.protein, unit: 'g', color: '#2B80C4',     bgColor: '#E8F4FD' },
     { key: 'carbs',   label: 'Carbs',    target: MACRO_TARGETS.carbs,   unit: 'g', color: '#D4820A',     bgColor: '#FFF3E0' },
     { key: 'fat',     label: 'Fat',      target: MACRO_TARGETS.fat,     unit: 'g', color: '#7C3AED',     bgColor: '#F3E8FF' },
     { key: 'fiber',   label: 'Fiber',    target: 25,                    unit: 'g', color: '#2D9E6B',     bgColor: '#E8F5E9' },
-    { key: 'sugar',   label: 'Sugar',    target: 50,                    unit: 'g', color: '#C73D63',     bgColor: '#FCE4EC' },
+    { key: 'sugar',   label: 'Sugar',    target: 50,                    unit: 'g', color: '#0a0a0a',     bgColor: '#FCE4EC' },
   ]
 
   return (

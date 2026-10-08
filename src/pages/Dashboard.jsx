@@ -800,7 +800,7 @@ function DataSyncWidget() {
 
   return (
     <div className="card mb-20" style={{ borderColor: 'var(--pink-border)' }}>
-      <div className="card-header" style={{ background: '#FFF5F7' }}>
+      <div className="card-header" style={{ background: '#fafafa' }}>
         <h3 style={{ color: 'var(--pink-text)' }}>☁️ Cloud Sync</h3>
         <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
           Data auto-syncs across all devices via Supabase
@@ -915,9 +915,9 @@ export default function Dashboard() {
           {/* Profile photo / initials — larger */}
           <div style={{
             width:76, height:76, borderRadius:'50%', overflow:'hidden', flexShrink:0,
-            background:'linear-gradient(135deg,#E8547A,#C73D63)',
+            background:'linear-gradient(135deg,#1c9fd0,#0a0a0a)',
             display:'flex', alignItems:'center', justifyContent:'center',
-            border:'3px solid #fff', boxShadow:'0 4px 16px rgba(232,84,122,0.25)',
+            border:'3px solid #fff', boxShadow:'0 4px 16px rgba(28,159,208,0.25)',
           }}>
             {photo
               ? <img src={photo} alt="Profile" style={{ width:'100%', height:'100%', objectFit:'cover' }} />

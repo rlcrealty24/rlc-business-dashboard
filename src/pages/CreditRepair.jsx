@@ -325,7 +325,7 @@ function ScoreTracker({ cid }) {
       {/* ── Report preview / confirm modal ── */}
       {preview && (
         <div style={{
-          background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 100%)',
+          background: 'linear-gradient(135deg, #eef9fe 0%, #e5e5e5 100%)',
           border: '1px solid var(--pink-border)',
           borderLeft: '4px solid var(--pink)',
           borderRadius: 'var(--radius-lg)',
@@ -1826,18 +1826,18 @@ function ClientCard({ client, selected, onSelect }) {
         cursor: 'pointer',
         minWidth: 160,
         transition: 'all 0.15s',
-        boxShadow: selected ? '0 4px 16px rgba(232,84,122,0.15)' : 'var(--shadow)',
+        boxShadow: selected ? '0 4px 16px rgba(28,159,208,0.15)' : 'var(--shadow)',
         position: 'relative',
       }}
     >
       {/* Avatar */}
       <div style={{
         width: 44, height: 44, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #E8547A, #C73D63)',
+        background: 'linear-gradient(135deg, #1c9fd0, #0a0a0a)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'white', fontWeight: 700, fontSize: '1rem',
         marginBottom: 10,
-        boxShadow: '0 2px 8px rgba(232,84,122,0.25)',
+        boxShadow: '0 2px 8px rgba(28,159,208,0.25)',
       }}>
         {initials(client.name)}
       </div>
@@ -1996,7 +1996,7 @@ export default function CreditRepair() {
         <div key={client.id}>
           {/* Client header bar */}
           <div style={{
-            background: 'linear-gradient(135deg, #FFF0F3 0%, #FFE4EC 100%)',
+            background: 'linear-gradient(135deg, #eef9fe 0%, #e5e5e5 100%)',
             border: '1px solid var(--pink-border)',
             borderLeft: '4px solid var(--pink)',
             borderRadius: 'var(--radius-lg)',
@@ -2007,7 +2007,7 @@ export default function CreditRepair() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{
                 width: 46, height: 46, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #E8547A, #C73D63)',
+                background: 'linear-gradient(135deg, #1c9fd0, #0a0a0a)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'white', fontWeight: 700, fontSize: '1.1rem',
                 flexShrink: 0,

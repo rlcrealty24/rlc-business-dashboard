@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar.jsx'
 import { bulkSync } from '../hooks/useLocalStorage.js'
+import { CeoProvider } from '../ceo/CeoStore.jsx'
+import QuickCapture from '../ceo/QuickCapture.jsx'
+import ReminderWatcher from '../ceo/ReminderWatcher.jsx'
+import { Toaster } from '../ceo/ui.jsx'
+import '../ceo/ceo.css'
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
@@ -11,6 +16,7 @@ export default function Layout() {
   }, [])
 
   return (
+    <CeoProvider>
     <div className="layout">
       {/* Mobile backdrop — tap to close sidebar */}
       <div className={`sidebar-backdrop ${open ? 'open' : ''}`} onClick={() => setOpen(false)} />
@@ -35,11 +41,15 @@ export default function Layout() {
               <line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
-          <span className="mobile-topbar-title">🌸 RLC Dashboard</span>
+          <span className="mobile-topbar-title">RLC · CEO</span>
         </div>
 
         <Outlet />
       </main>
+      <QuickCapture />
+      <ReminderWatcher />
+      <Toaster />
     </div>
+    </CeoProvider>
   )
 }
