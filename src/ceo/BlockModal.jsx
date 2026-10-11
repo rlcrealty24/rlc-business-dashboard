@@ -54,7 +54,8 @@ export default function BlockModal({ initial, scopeDate, onClose }) {
       weekly: { freq: 'weekly', byDay: b.recurrence?.byDay?.length ? b.recurrence.byDay : [startDow] },
       monthly: { freq: 'monthly' }, monthly_last: { freq: 'monthly_last' }, yearly: { freq: 'yearly' },
     }
-    set({ recurrence: map[key] })
+    const keep = b.recurrence?.onlyOnPublishDays ? { onlyOnPublishDays: true } : {}
+    set({ recurrence: { ...map[key], ...keep } })
   }
   function toggleDay(d) {
     const by = new Set(b.recurrence.byDay || [])
@@ -237,6 +238,11 @@ export default function BlockModal({ initial, scopeDate, onClose }) {
             <label className="c-label">Weekly rotating topic — one per line (optional)</label>
             <textarea className="c-textarea" value={rotationText} onChange={e => setRotationText(e.target.value)} placeholder={'Sales strategies\nLead generation\nContracts'} />
           </div>
+          <label className="c-check-row">
+            <input type="checkbox" checked={!!b.recurrence?.onlyOnPublishDays}
+              onChange={e => set({ recurrence: { ...b.recurrence, onlyOnPublishDays: e.target.checked || undefined } })} />
+            Only on days a Social HQ post goes live
+          </label>
           <label className="c-check-row">
             <input type="checkbox" checked={b.protected} onChange={e => set({ protected: e.target.checked })} />
             Protected time — wins over flexible blocks when they overlap

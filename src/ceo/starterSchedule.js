@@ -222,30 +222,11 @@ export function buildStarterBlocks() {
     }),
     block('Follow-Up & Pipeline', 'money', [4], '12:00', '12:30', { protected: true, checklist: FOLLOW_UP }),
 
-    // ── Posting & engagement (posts are pre-scheduled) ───────────────────────
-    block('Post & Engage — @rlcrealtycoleasing', 'content', [1], '12:30', '12:45', {
+    // ── Posting & engagement — only on days a Social HQ post goes live ───────
+    block('Post & Engage', 'content', EVERY_DAY, '12:30', '12:45', {
       reminders: [0],
-      description: 'Today\'s post: Rental Deal of the Week\nPlatforms: Instagram Reel + TikTok\nAccount: @rlcrealtycoleasing',
-      checklist: POST_ENGAGE,
-    }),
-    block('Post & Engage — @rlcrealtyco', 'content', [2], '12:30', '12:45', {
-      reminders: [0],
-      description: 'Today\'s post: Agent Spotlight (agent, their listing, rental or win)\nPlatforms: Instagram Reel + TikTok\nAccount: @rlcrealtyco',
-      checklist: POST_ENGAGE,
-    }),
-    block('Post & Engage — @royannacarbajal', 'content', [3], '12:30', '12:45', {
-      reminders: [0],
-      description: 'Today\'s post: Founder / business lesson (what I\'m building, a lesson, a win)\nPlatforms: TikTok + Instagram Reel\nAccount: @royannacarbajal\nPrivacy rule: no location, no Sophia\'s face unless you choose to.',
-      checklist: POST_ENGAGE,
-    }),
-    block('Post & Engage — @rlcrealtyco', 'content', [4], '12:30', '12:45', {
-      reminders: [0],
-      description: 'Today\'s post: Just Listed / Just Leased / Closed / Market Update\nPlatforms: Instagram (Reel or carousel) + TikTok\nAccount: @rlcrealtyco',
-      checklist: POST_ENGAGE,
-    }),
-    block('Post & Engage — @rlcrealtycoleasing', 'content', [5], '12:30', '12:45', {
-      reminders: [0],
-      description: 'Today\'s post: Weekend Move-In Specials roundup\nPlatforms: Instagram carousel + Story\nAccount: @rlcrealtycoleasing',
+      recurrence: { freq: 'weekly', byDay: EVERY_DAY, onlyOnPublishDays: true },
+      description: 'Shows up only on days a post goes live (from Social HQ). Today\'s posts are listed above.',
       checklist: POST_ENGAGE,
     }),
 

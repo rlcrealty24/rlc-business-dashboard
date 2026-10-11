@@ -21,7 +21,7 @@ function useMinuteClock() {
 }
 
 export default function Today() {
-  const { blocks, tasks, loading, setupNeeded, offline, toggleCheck, setOccurrence, saveTask, updateTask, error } = useCeo()
+  const { blocks, tasks, loading, setupNeeded, offline, suspectEmpty, toggleCheck, setOccurrence, saveTask, updateTask, error } = useCeo()
   const today = todayISO()
   const { byDate, feed } = useCalendarItems(today, addDays(today, 14))
   const now = useMinuteClock()
@@ -64,7 +64,16 @@ export default function Today() {
           Cloud database unreachable — everything is saving on this device and uploads automatically once the database is back.
         </div>
       )}
-      {!loading && blocks.length === 0 && <div style={{ marginBottom: 20 }}><StarterCard /></div>}
+      {suspectEmpty && (
+        <div className="c-banner" style={{ marginBottom: 16, borderColor: '#fecaca', background: '#fef2f2', color: '#991b1b' }}>
+          <div>
+            <strong>Your schedule came back empty from the database.</strong> It's almost certainly still there — the database
+            is blocking access (usually a permissions/SQL change). You're seeing the last copy saved on this device.
+            Don't reload the starter schedule; ask Claude to check database access.
+          </div>
+        </div>
+      )}
+      {!loading && !suspectEmpty && blocks.length === 0 && <div style={{ marginBottom: 20 }}><StarterCard /></div>}
 
       <div className="c-grid">
         <div className="c-stack">

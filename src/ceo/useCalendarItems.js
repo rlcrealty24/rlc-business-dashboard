@@ -100,6 +100,24 @@ function contentItems(items, from, to) {
   return out
 }
 
+/** "Post & Engage"-style blocks only exist on days something goes live; list what's posting */
+function publishDayBlocks(occurrences, social) {
+  const byDate = new Map()
+  for (const i of social) {
+    if (i.archived || i.stage === 'idea' || !i.publish_date) continue
+    if (!byDate.has(i.publish_date)) byDate.set(i.publish_date, [])
+    byDate.get(i.publish_date).push(i)
+  }
+  return occurrences.flatMap(o => {
+    if (!o.block?.recurrence?.onlyOnPublishDays) return [o]
+    const posts = byDate.get(o.date)
+    if (!posts) return []
+    const lines = posts.map(p => `• ${BRANDS[p.brand]?.short || ''} — ${p.title}${p.platforms?.length ? ` (${p.platforms.map(x => x[0].toUpperCase() + x.slice(1)).join(' + ')})` : ''}`)
+    return [{ ...o, title: `Post & Engage — ${posts.length === 1 ? BRANDS[posts[0].brand]?.handle || posts[0].title : `${posts.length} posts`}`,
+      description: `Going live today:\n${lines.join('\n')}` }]
+  })
+}
+
 export function useCalendarItems(from, to, { portal = true } = {}) {
   const { blocks, overrides, tasks } = useCeo()
   const [events] = useLocalStorage('dash_events', [])
@@ -110,7 +128,7 @@ export function useCalendarItems(from, to, { portal = true } = {}) {
 
   const result = useMemo(() => {
     const all = [
-      ...expandBlocks(blocks, overrides, from, to),
+      ...publishDayBlocks(expandBlocks(blocks, overrides, from, to), social),
       ...(portal ? feed.items : []),
       ...lifeItems(events, outlook, accounts, from, to),
       ...taskItems(tasks, from, to),

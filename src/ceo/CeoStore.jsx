@@ -13,6 +13,7 @@ const CeoContext = createContext(null)
 // '__' prefix keeps this out of the dashboard_data bulk sync
 const CACHE_KEY = '__ceo_cache_v1'
 const LOCAL_ONLY_KEY = '__ceo_local_only'
+const HAD_BLOCKS_KEY = '__ceo_had_blocks'   // this device has seen a real schedule before
 
 function readCache() {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || null } catch { return null }
@@ -40,6 +41,7 @@ export function CeoProvider({ children }) {
   const reloadTimer = useRef(null)
 
   const [offline, setOffline] = useState(false)          // cloud unreachable → this device only
+  const [suspectEmpty, setSuspectEmpty] = useState(false) // schedule came back empty but used to exist
   const live = useRef(false)
 
   const load = useCallback(async () => {
@@ -77,6 +79,15 @@ export function CeoProvider({ children }) {
       return
     }
     localStorage.removeItem(LOCAL_ONLY_KEY)
+    // An empty schedule after we've seen one almost always means access was blocked,
+    // not that it was deleted — warn instead of offering to reload the starter.
+    const hadBlocks = localStorage.getItem(HAD_BLOCKS_KEY) === '1'
+    if (!b.data.length && hadBlocks) {
+      setSuspectEmpty(true); setLoading(false)
+      return   // keep showing the last copy on this device
+    }
+    setSuspectEmpty(false)
+    if (b.data.length) localStorage.setItem(HAD_BLOCKS_KEY, '1')
     setBlocks(b.data.map(normBlock)); setOccRows(o.data.map(normOcc)); setTasks(t.data.map(normTask))
     setLoading(false)
     live.current = true
@@ -191,7 +202,7 @@ export function CeoProvider({ children }) {
   }, [write])
 
   const value = {
-    blocks, overrides, tasks, loading, setupNeeded, offline, error, setError, reload: load,
+    blocks, overrides, tasks, loading, setupNeeded, offline, suspectEmpty, error, setError, reload: load,
     saveBlock, deleteBlock, splitBlock, setOccurrence, toggleCheck,
     saveTask, updateTask, deleteTask, capture, installStarter,
   }
