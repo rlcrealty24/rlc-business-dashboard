@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useCeo } from '../ceo/CeoStore.jsx'
+import { supabase } from '../lib/supabase.js'
 
 const ico = d => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -141,6 +142,10 @@ export default function Sidebar({ open = true, onClose = () => {} }) {
       <div className="rlc-side-foot">
         <span>Leadership in every deal.</span>
         <span>Loyalty in every move.</span>
+        <button onClick={() => supabase.auth.signOut()} className="c-link"
+          style={{ background: 'none', border: 0, padding: 0, marginTop: 10, cursor: 'pointer', fontFamily: 'var(--sans)', fontStyle: 'normal', fontSize: 11, letterSpacing: '.14em', textTransform: 'uppercase', textAlign: 'left' }}>
+          Sign out
+        </button>
       </div>
     </aside>
   )

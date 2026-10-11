@@ -1,11 +1,22 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { supabase } from '../lib/supabase.js'
+
+// Claude is called through our own server function (/api/ai) so the API key
+// never ships to the browser. Same shape as the SDK: client.messages.create(params).
+export async function aiCreate(params) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('Sign in to use AI features')
+  const res = await fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(params),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || `AI request failed (${res.status})`)
+  return body
+}
 
 function getClient() {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  if (!apiKey || apiKey === 'your_api_key_here') {
-    throw new Error('Add your Anthropic API key to .env as VITE_ANTHROPIC_API_KEY')
-  }
-  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+  return { messages: { create: aiCreate } }
 }
 
 const EXPENSE_CATEGORIES = [
