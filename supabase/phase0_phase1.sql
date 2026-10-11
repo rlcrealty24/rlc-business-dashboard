@@ -1,5 +1,5 @@
--- ═══ Phase 0 (security) + Phase 1 (Social Media HQ) ═══════════════════════════
--- Run once in Supabase → SQL Editor, AFTER you've created your account in the app.
+-- ═══ Social Media HQ tables + keep-alive + reminders-skill access ═══════════════
+-- Run once in Supabase → SQL Editor. Safe to re-run.
 
 -- ── Social Media HQ tables ──────────────────────────────────────────────────
 create table if not exists content_campaigns (
@@ -53,26 +53,13 @@ create table if not exists content_items (
 );
 create index if not exists content_items_publish_idx on content_items (publish_date);
 
--- ── Lock everything to your signed-in account ───────────────────────────────
-do $$ declare r record; begin
-  for r in select policyname, tablename from pg_policies where schemaname = 'public'
-    and tablename in ('dashboard_data','ceo_blocks','ceo_occurrences','ceo_tasks','content_items','content_campaigns')
-  loop execute format('drop policy %I on %I', r.policyname, r.tablename); end loop;
-end $$;
-
-alter table dashboard_data    enable row level security;
-alter table ceo_blocks        enable row level security;
-alter table ceo_occurrences   enable row level security;
-alter table ceo_tasks         enable row level security;
+-- ── Access: same open model as the rest of the dashboard (no login, by choice) ──
 alter table content_items     enable row level security;
 alter table content_campaigns enable row level security;
-
-create policy "signed in" on dashboard_data    for all to authenticated using (true) with check (true);
-create policy "signed in" on ceo_blocks        for all to authenticated using (true) with check (true);
-create policy "signed in" on ceo_occurrences   for all to authenticated using (true) with check (true);
-create policy "signed in" on ceo_tasks         for all to authenticated using (true) with check (true);
-create policy "signed in" on content_items     for all to authenticated using (true) with check (true);
-create policy "signed in" on content_campaigns for all to authenticated using (true) with check (true);
+drop policy if exists "dashboard access" on content_items;
+create policy "dashboard access" on content_items for all using (true) with check (true);
+drop policy if exists "dashboard access" on content_campaigns;
+create policy "dashboard access" on content_campaigns for all using (true) with check (true);
 
 do $$ begin
   alter publication supabase_realtime add table content_items, content_campaigns;

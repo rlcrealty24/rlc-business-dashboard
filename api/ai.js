@@ -1,7 +1,6 @@
-// Server-side Claude proxy. The Anthropic key lives only in Vercel env vars;
-// callers must be signed in to the dashboard (Supabase session token).
-const SUPABASE_URL = 'https://ynvlsbmxipmksrgaebnq.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_8rczDgNjp2m_tLdc9jrE1Q_xzmWv2fE'
+// Server-side Claude proxy. The Anthropic key lives only in Vercel env vars.
+// The dashboard has no login (owner's choice), so requests are only accepted
+// from the dashboard's own pages — this stops casual misuse, not a determined attacker.
 
 const ALLOWED_MODELS = new Set([
   'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5', 'claude-fable-5-1',
@@ -10,18 +9,16 @@ const ALLOWED_MODELS = new Set([
 ])
 const MAX_TOKENS = 16000
 
-async function signedIn(req) {
-  const auth = req.headers.authorization || ''
-  if (!auth.startsWith('Bearer ')) return false
-  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: { apikey: SUPABASE_ANON_KEY, Authorization: auth },
-  })
-  return r.ok
+const OWN_ORIGIN = /^https:\/\/(royannadashboard\.vercel\.app|rlc-business-dashboard-[a-z0-9-]+\.vercel\.app)$|^http:\/\/localhost(:\d+)?$/
+
+function fromDashboard(req) {
+  const origin = req.headers.origin || (req.headers.referer || '').replace(/^(https?:\/\/[^/]+).*$/, '$1')
+  return OWN_ORIGIN.test(origin)
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-  if (!(await signedIn(req))) return res.status(401).json({ error: 'Sign in to use AI features' })
+  if (!fromDashboard(req)) return res.status(403).json({ error: 'Not allowed' })
 
   const key = process.env.ANTHROPIC_API_KEY || process.env.VITE_ANTHROPIC_API_KEY
   if (!key) return res.status(500).json({ error: 'AI is not configured on the server' })

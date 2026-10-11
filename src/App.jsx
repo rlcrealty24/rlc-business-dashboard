@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
-import AuthGate from './components/AuthGate.jsx'
 import Finance from './pages/Finance.jsx'
 import RealEstate from './pages/RealEstate.jsx'
 import CreditRepair from './pages/CreditRepair.jsx'
@@ -20,7 +19,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<AuthGate><Layout /></AuthGate>}>
+        <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/today" replace />} />
           <Route path="today" element={<Today />} />
           <Route path="calendar" element={<CeoCalendar />} />
