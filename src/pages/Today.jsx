@@ -10,6 +10,7 @@ import ItemSheet from '../ceo/ItemSheet.jsx'
 import { openCapture } from '../ceo/QuickCapture.jsx'
 import { PortalCard, PulseCard, SetupNeeded, StarterCard } from '../ceo/SetupCards.jsx'
 import { ImportantTasks, MoneyCard } from '../ceo/LifeCards.jsx'
+import MarketingCard from '../social/MarketingCard.jsx'
 
 const live = i => i.status !== 'skipped' && !i.bumpedBy
 
@@ -29,7 +30,8 @@ export default function Today() {
 
   const items = byDate.get(today) || []
   const timed = items.filter(i => !i.allDay)
-  const allDay = items.filter(i => i.allDay)
+  // Social HQ prep steps already have their own card above — don't repeat them here
+  const allDay = items.filter(i => i.allDay && !i.contentStep)
   const current = timed.find(i => live(i) && i.start <= now && now < i.end && i.status !== 'done')
     || timed.find(i => live(i) && i.start <= now && now < i.end)
   const upNext = timed.filter(i => live(i) && i.start > now).slice(0, 2)
@@ -114,6 +116,8 @@ export default function Today() {
 
           {/* Top 3 */}
           <Top3 tasks={top3} today={today} saveTask={saveTask} updateTask={updateTask} />
+
+          <MarketingCard />
 
           {/* Timeline */}
           <div className="c-card">

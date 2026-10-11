@@ -5,6 +5,8 @@ import { useMemo } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { useCeo } from './CeoStore.jsx'
 import { usePortalFeed } from './portal.js'
+import { useSocial } from '../social/SocialStore.jsx'
+import { BRANDS } from '../social/constants.js'
 import { addDays, daysBetween, expandBlocks, parseISO, pad, resolveClashes, toMin } from './recurrence.js'
 
 /** '10:30 AM' | '10:30' | '' → minutes or null */
@@ -72,12 +74,39 @@ function taskItems(tasks, from, to) {
   return out
 }
 
+/** Social HQ: publish dates + open prep steps (one record per post — nothing duplicated) */
+function contentItems(items, from, to) {
+  const out = []
+  for (const i of items) {
+    if (i.archived || i.stage === 'idea') continue
+    const brand = BRANDS[i.brand]?.short || ''
+    if (i.publish_date && i.publish_date >= from && i.publish_date <= to && !['published', 'reviewed'].includes(i.stage)) {
+      const start = toMin(i.publish_time)
+      out.push({
+        key: `c:${i.id}`, source: 'content', category: 'content', contentId: i.id,
+        title: `Post · ${brand}: ${i.title}`, date: i.publish_date, start, end: start === null ? null : start + 15, allDay: start === null,
+        reminders: [1440], href: `/social/post/${i.id}`, description: i.caption || i.notes || '',
+      })
+    }
+    for (const s of i.steps || []) {
+      if (s.done || !s.due || s.due < from || s.due > to || ['publish', 'review'].includes(s.anchor)) continue
+      out.push({
+        key: `cs:${i.id}:${s.key}`, source: 'content', category: 'content', contentId: i.id, contentStep: s.key,
+        title: `${s.label} — ${i.title}`, date: s.due, start: null, end: null, allDay: true,
+        reminders: [0], href: `/social/post/${i.id}`, description: `${brand} post · ${s.items.filter(x => !x.done).map(x => x.text).join(' · ')}`,
+      })
+    }
+  }
+  return out
+}
+
 export function useCalendarItems(from, to, { portal = true } = {}) {
   const { blocks, overrides, tasks } = useCeo()
   const [events] = useLocalStorage('dash_events', [])
   const [outlook] = useLocalStorage('dash_outlook_events', [])
   const [accounts] = useLocalStorage('finance_accounts', [])
   const feed = usePortalFeed(from, portal ? to : from)
+  const { items: social } = useSocial()
 
   const result = useMemo(() => {
     const all = [
@@ -85,6 +114,7 @@ export function useCalendarItems(from, to, { portal = true } = {}) {
       ...(portal ? feed.items : []),
       ...lifeItems(events, outlook, accounts, from, to),
       ...taskItems(tasks, from, to),
+      ...contentItems(social, from, to),
     ]
     const byDate = new Map()
     for (let i = 0; i <= daysBetween(from, to); i++) byDate.set(addDays(from, i), [])
@@ -94,7 +124,7 @@ export function useCalendarItems(from, to, { portal = true } = {}) {
       list.sort((a, b) => (a.allDay === b.allDay ? (a.start ?? 0) - (b.start ?? 0) : a.allDay ? -1 : 1))
     }
     return { all, byDate }
-  }, [blocks, overrides, tasks, events, outlook, accounts, feed.items, from, to, portal])
+  }, [blocks, overrides, tasks, events, outlook, accounts, feed.items, social, from, to, portal])
 
   return { ...result, feed }
 }

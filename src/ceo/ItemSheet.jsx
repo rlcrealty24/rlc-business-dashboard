@@ -6,10 +6,12 @@ import BlockModal from './BlockModal.jsx'
 import { reminderLabel } from './constants.js'
 import { fmtDate, fmtRange, recurrenceLabel } from './recurrence.js'
 import { PLAN_DAYS } from '../data/fitnessData.js'
+import { useSocial } from '../social/SocialStore.jsx'
 
 /** Detail view for any calendar item — CEO block, portal item, life event, bill or task */
 export default function ItemSheet({ item, onClose }) {
   const { toggleCheck, setOccurrence, deleteBlock, splitBlock, updateTask, deleteTask } = useCeo()
+  const { toggleStep } = useSocial()
   const [editing, setEditing] = useState(false)
   const [moving, setMoving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -51,6 +53,11 @@ export default function ItemSheet({ item, onClose }) {
         const done = item.task.status !== 'done'
         updateTask(item.task, { status: done ? 'done' : 'next', completed_at: done ? new Date().toISOString() : null }); onClose()
       }}>{item.task.status === 'done' ? 'Reopen' : 'Complete'}</button>
+    </>
+  ) : item.source === 'content' ? (
+    <>
+      {item.contentStep && <button className="c-btn c-btn-sm" onClick={() => { toggleStep(item.contentId, item.contentStep); onClose() }}>Mark step done</button>}
+      <Link className="c-btn c-btn-sky c-btn-sm" to={item.href} onClick={onClose}>Open post workspace</Link>
     </>
   ) : item.href ? (
     item.href.startsWith('http')
@@ -113,7 +120,9 @@ export default function ItemSheet({ item, onClose }) {
         <Link className="c-link" to={item.block.link} onClick={onClose} style={{ fontSize: 13 }}>Open {item.block.link.replace('/', '')} →</Link>
       )}
       {item.reminders?.length > 0 && (
-        <div style={{ fontSize: 12 }} className="c-muted">Reminders: {item.reminders.map(reminderLabel).join(' · ')} before</div>
+        <div style={{ fontSize: 12 }} className="c-muted">
+          Reminders: {item.reminders.map(m => (m === 0 ? (item.allDay ? 'that morning (8 AM)' : 'when it starts') : `${reminderLabel(m)} before`)).join(' · ')}
+        </div>
       )}
     </Modal>
   )

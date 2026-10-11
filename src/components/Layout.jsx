@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar.jsx'
 import { bulkSync } from '../hooks/useLocalStorage.js'
 import { CeoProvider } from '../ceo/CeoStore.jsx'
+import { SocialProvider } from '../social/SocialStore.jsx'
 import QuickCapture from '../ceo/QuickCapture.jsx'
 import ReminderWatcher from '../ceo/ReminderWatcher.jsx'
 import { Toaster } from '../ceo/ui.jsx'
@@ -17,6 +18,7 @@ export default function Layout() {
 
   return (
     <CeoProvider>
+    <SocialProvider>
     <div className="layout">
       {/* Mobile backdrop — tap to close sidebar */}
       <div className={`sidebar-backdrop ${open ? 'open' : ''}`} onClick={() => setOpen(false)} />
@@ -50,6 +52,7 @@ export default function Layout() {
       <ReminderWatcher />
       <Toaster />
     </div>
+    </SocialProvider>
     </CeoProvider>
   )
 }

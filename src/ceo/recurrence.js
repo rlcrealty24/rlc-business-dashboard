@@ -250,7 +250,7 @@ function rarity(block) {
 }
 function weight(i) {
   if (i.source === 'ceo') return i.protected ? 2 + rarity(i.block) : 1
-  if (i.source === 'task') return 0
+  if (i.source === 'task' || i.source === 'content') return 0
   return 3 // portal appointments & life events are real commitments
 }
 function clashWinner(a, b) {

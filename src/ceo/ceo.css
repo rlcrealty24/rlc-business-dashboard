@@ -147,7 +147,7 @@ button.c-chip { cursor: pointer; }
 .c-ev.clash { outline: 2px solid #f59e0b; outline-offset: -2px; }
 .c-ev.dragging { opacity: .85; box-shadow: 0 6px 20px rgba(0,0,0,.2); z-index: 10; }
 .c-pill { font-size: 11px; padding: 2px 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-left: 3px solid; }
-.c-month { display: grid; grid-template-columns: repeat(7, 1fr); }
+.c-month { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .c-month-cell { min-height: 112px; border-left: 1px solid var(--border); border-top: 1px solid var(--border); padding: 6px; display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
 .c-month-cell.other { background: var(--mist); color: var(--muted); }
 .c-month-cell .md { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
@@ -191,3 +191,39 @@ button.c-chip { cursor: pointer; }
 .c-pre { white-space: pre-wrap; font-size: 13px; line-height: 1.6; color: var(--mid); }
 .c-link { color: var(--sky-deep); text-decoration: none; font-weight: 500; }
 .c-link:hover { text-decoration: underline; }
+
+/* ─── Social Media HQ ───────────────────────────────────────────────────── */
+.s-card { background: #fff; border: 1px solid var(--border); border-left: 3px solid var(--ink); padding: 10px 12px; cursor: pointer;
+  transition: box-shadow .15s; }
+.s-card:hover { box-shadow: 0 3px 12px rgba(10,10,10,.08); }
+.s-card[draggable="true"] { cursor: grab; }
+.s-card-title { font-size: 13px; line-height: 1.35; font-weight: 500; }
+.s-card-meta { font-size: 11px; color: var(--light); margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap; }
+.s-card-next { font-size: 11px; color: var(--sky-deep); margin-top: 6px; }
+.s-board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.s-col { background: var(--mist); border: 1px solid var(--border); min-height: 240px; display: flex; flex-direction: column; }
+.s-col.drop { outline: 2px dashed var(--sky); outline-offset: -2px; }
+.s-col-head { padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: #fff; }
+.s-col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+.s-day { min-width: 0; overflow: hidden; min-height: 120px; border-left: 1px solid var(--border); border-top: 1px solid var(--border); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.s-day.drop { background: var(--sky-soft); }
+.s-day.other { background: var(--mist); }
+.s-day .md { font-size: 12px; font-weight: 500; }
+.s-day.today .md { color: #fff; background: var(--sky-deep); padding: 0 6px; align-self: flex-start; }
+.s-prep { font-size: 10.5px; color: var(--mid); padding: 2px 6px; border-left: 2px dashed var(--muted); background: #fff; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-prep.done { text-decoration: line-through; opacity: .5; }
+.s-pill { font-size: 11px; padding: 3px 6px; border-left: 3px solid; cursor: grab; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-step { border: 1px solid var(--border); background: #fff; }
+.s-step-head { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: center; padding: 10px 14px; cursor: pointer; }
+.s-step.next { border-color: var(--sky); box-shadow: 0 0 0 1px var(--sky); }
+.s-step.done .s-step-label { text-decoration: line-through; color: var(--light); }
+.s-step-items { padding: 0 14px 8px 46px; }
+.s-field-label { font-size: 10px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: var(--mid); margin-bottom: 6px; display: block; }
+.s-two { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1050px) { .s-two { grid-template-columns: 1fr; } }
+.s-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.s-table th { text-align: left; font-size: 10px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: var(--mid);
+  padding: 10px 12px; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+.s-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.s-table tr:hover td { background: var(--mist); cursor: pointer; }

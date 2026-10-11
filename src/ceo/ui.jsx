@@ -59,6 +59,7 @@ export function CategoryTag({ item }) {
   if (item.source === 'portal') return <span className="c-chip ink">RLC Portal</span>
   if (item.source === 'bill') return <span className="c-chip red">Bill</span>
   if (item.source === 'life') return <span className="c-chip">Dashboard</span>
+  if (item.source === 'content') return <span className="c-chip" style={{ color: '#c2410c', borderColor: '#c2410c40', background: '#fff4ec' }}>Social HQ</span>
   const c = CATEGORIES[item.category] || CATEGORIES.business
   return (
     <span className="c-chip" style={{ color: c.color, borderColor: c.color + '40', background: c.bg }}>

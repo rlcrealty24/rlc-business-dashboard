@@ -21,6 +21,7 @@ const SOURCES = [
   ['portal', 'RLC Portal'],
   ['life', 'Dashboard & bills'],
   ['task', 'Tasks'],
+  ['content', 'Social HQ'],
 ]
 const sourceKey = i => (i.source === 'bill' ? 'life' : i.source)
 

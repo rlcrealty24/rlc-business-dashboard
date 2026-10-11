@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { useCeo } from '../ceo/CeoStore.jsx'
 import { supabase } from '../lib/supabase.js'
+import { useSocial } from '../social/SocialStore.jsx'
+import { todayISO } from '../ceo/recurrence.js'
 
 const ico = d => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -12,6 +14,12 @@ const CEO_NAV = [
   { path: '/calendar', label: 'Calendar', icon: ico(<><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></>) },
   { path: '/inbox',    label: 'Inbox',    icon: ico(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>) },
   { path: '/dates',    label: 'Dates & Reminders', icon: ico(<><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>) },
+]
+
+const SOCIAL_NAV = [
+  { path: '/social',         label: 'Social HQ',        icon: ico(<><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></>) },
+  { path: '/social/planner', label: 'Content Planner',  icon: ico(<><rect x="3" y="4" width="7" height="16"/><rect x="14" y="4" width="7" height="10"/></>) },
+  { path: '/social/ideas',   label: 'Ideas & Backlog',  icon: ico(<><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></>) },
 ]
 
 const NAV = [
@@ -81,7 +89,7 @@ function getGreeting() {
 
 function NavItem({ path, label, icon, badge, onClose, active }) {
   return (
-    <NavLink to={path} onClick={onClose} className={`rlc-nav${active ? ' active' : ''}`}>
+    <NavLink end to={path} onClick={onClose} className={() => `rlc-nav${active ? ' active' : ''}`}>
       <span className="rlc-nav-ico">{icon}</span>
       <span style={{ flex: 1 }}>{label}</span>
       {badge > 0 && <span className="rlc-nav-badge">{badge}</span>}
@@ -95,6 +103,10 @@ export default function Sidebar({ open = true, onClose = () => {} }) {
   const location = useLocation()
   const { tasks } = useCeo()
   const inboxCount = tasks.filter(t => t.status === 'inbox').length
+  const { items: contentItems } = useSocial()
+  const today = todayISO()
+  const contentDue = contentItems.filter(i => !i.archived && i.stage !== 'idea')
+    .reduce((n, i) => n + (i.steps || []).filter(s => !s.done && s.due && s.due <= today && s.anchor !== 'review').length, 0)
 
   function handlePhoto(e) {
     const file = e.target.files[0]
@@ -134,6 +146,12 @@ export default function Sidebar({ open = true, onClose = () => {} }) {
         {CEO_NAV.map(n => (
           <NavItem key={n.path} {...n} onClose={onClose} active={location.pathname === n.path}
             badge={n.path === '/inbox' ? inboxCount : 0} />
+        ))}
+        <div className="rlc-nav-section" style={{ marginTop: 14 }}>Social HQ</div>
+        {SOCIAL_NAV.map(n => (
+          <NavItem key={n.path} {...n} onClose={onClose}
+            active={n.path === '/social' ? location.pathname === '/social' || location.pathname.startsWith('/social/post') : location.pathname === n.path}
+            badge={n.path === '/social' ? contentDue : 0} />
         ))}
         <div className="rlc-nav-section" style={{ marginTop: 14 }}>Life &amp; Money</div>
         {NAV.map(n => <NavItem key={n.path} {...n} onClose={onClose} active={location.pathname === n.path} />)}
