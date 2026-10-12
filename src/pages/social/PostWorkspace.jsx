@@ -355,21 +355,57 @@ function Select({ label, value, options, onChange }) {
 }
 
 function Assets({ item, set }) {
+  const { assets: library, libraryNeeded, saveAsset } = useSocial()
   const [label, setLabel] = useState('')
   const [url, setUrl] = useState('')
+  const [q, setQ] = useState('')
+  const [picking, setPicking] = useState(false)
   const assets = item.assets || []
+  const byId = new Map(library.map(a => [a.id, a]))
+  const linked = new Set(assets.map(a => a.asset_id).filter(Boolean))
+  const matches = library.filter(a => !linked.has(a.id) && (!q || `${a.label} ${a.property || ''} ${(a.tags || []).join(' ')}`.toLowerCase().includes(q.toLowerCase()))).slice(0, 8)
+
+  async function addLink(e) {
+    e.preventDefault(); if (!url.trim()) return
+    if (libraryNeeded) set({ assets: [...assets, { label: label.trim() || null, url: url.trim() }] })
+    else {
+      // New links also go into the library so they can be reused
+      const row = await saveAsset({ label: label.trim() || url.trim().slice(0, 60), url: url.trim(), kind: 'other', brand: item.brand })
+      set({ assets: [...assets, { asset_id: row.id }] })
+    }
+    setLabel(''); setUrl('')
+  }
   return (
     <div>
-      {assets.map((a, i) => (
-        <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 20px', borderBottom: '1px solid var(--border)' }}>
-          <a className="c-link" href={a.url} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.label || a.url}</a>
-          <button className="c-btn c-btn-ghost c-btn-sm" onClick={() => set({ assets: assets.filter((_, j) => j !== i) })}>✕</button>
+      {assets.map((a, i) => {
+        const lib = a.asset_id ? byId.get(a.asset_id) : null
+        const label = lib ? lib.label : a.label || a.url
+        const href = lib ? lib.url : a.url
+        return (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '8px 20px', borderBottom: '1px solid var(--border)' }}>
+            {href ? <a className="c-link" href={href} target="_blank" rel="noreferrer" style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</a>
+              : <span style={{ flex: 1, fontSize: 13 }}>{label || 'Removed from library'}</span>}
+            {lib && <span className="c-chip">Library</span>}
+            <button className="c-btn c-btn-ghost c-btn-sm" onClick={() => set({ assets: assets.filter((_, j) => j !== i) })}>✕</button>
+          </div>
+        )
+      })}
+      {!libraryNeeded && (
+        <div style={{ padding: '10px 20px 0' }}>
+          {!picking ? <button className="c-btn c-btn-sm" onClick={() => setPicking(true)}>Pick from library ({library.length})</button> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <input className="c-input" autoFocus placeholder="Search the library…" value={q} onChange={e => setQ(e.target.value)} />
+              {matches.map(a => (
+                <button key={a.id} className="c-btn c-btn-ghost c-btn-sm" style={{ justifyContent: 'flex-start', textTransform: 'none', letterSpacing: 0, fontWeight: 400, fontSize: 13 }}
+                  onClick={() => set({ assets: [...assets, { asset_id: a.id }] })}>+ {a.label}{a.property ? ` · ${a.property}` : ''}</button>
+              ))}
+              {matches.length === 0 && <span className="c-muted" style={{ fontSize: 12 }}>No matches.</span>}
+              <button className="c-btn c-btn-ghost c-btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setPicking(false)}>Done</button>
+            </div>
+          )}
         </div>
-      ))}
-      <form className="c-card-body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onSubmit={e => {
-        e.preventDefault(); if (!url.trim()) return
-        set({ assets: [...assets, { label: label.trim() || null, url: url.trim() }] }); setLabel(''); setUrl('')
-      }}>
+      )}
+      <form className="c-card-body" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} onSubmit={addLink}>
         <input className="c-input" style={{ flex: '1 1 120px' }} placeholder="What it is (e.g. Miami B-roll)" value={label} onChange={e => setLabel(e.target.value)} />
         <input className="c-input" style={{ flex: '2 1 180px' }} placeholder="Shared iCloud / Drive link" value={url} onChange={e => setUrl(e.target.value)} />
         <button className="c-btn c-btn-sm">Add</button>

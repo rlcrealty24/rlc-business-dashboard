@@ -143,3 +143,34 @@ export function enforcePlan(plan, { items, scheduled, perWeek, lowCapacity, toda
   }
   return { summary: plan.summary || '', posts, held_back: held }
 }
+
+/** Unique hook + caption for each apartment in a campaign (leasing voice). rows: [{key, date, apt}] */
+export async function campaignCopy(rows, campaignName) {
+  const system = `You write short-form apartment video copy for @rlcrealtycoleasing (RLC Leasing) — Miami and Denver rentals.
+
+${VOICES}
+
+${STYLE}
+
+RULES FOR THIS SERIES ("${campaignName}"):
+- Every hook must be different in angle — price, a specific feature, the neighborhood, a renter problem it solves, a special, a lifestyle moment. Never reuse an opening.
+- Use only the apartment's public name exactly as given. Never invent building names, addresses, unit numbers, prices or specials.
+- If pricing or a special is mentioned, the CTA/caption must work even if it changes — say "verify current specials" in the notes field, not in the caption.
+- Captions: 2–4 short lines + one clear next step (DM a keyword, link in bio). One emoji at most.
+
+Return ONLY JSON: { "posts": [ { "key": "<key as given>", "hook": "", "on_screen_text": "short lines separated by \\n", "caption": "", "cta": "", "notes": "what to verify / film for this one" } ] }`
+  const user = JSON.stringify(rows.map(r => ({
+    key: r.key, day: r.date, name: r.apt.name, market: r.apt.market, area: r.apt.area,
+    pricing: r.apt.prices || null, special: r.apt.special || null, amenities: (r.apt.amenities || []).slice(0, 8), notes: r.apt.notes || null,
+  })), null, 2)
+  const out = await ask(system, user, 16000)
+  return Array.isArray(out.posts) ? out.posts : []
+}
+
+/** Continue / pause / adjust, from the campaign's results so far */
+export async function reviewCampaign(summary) {
+  const system = `You review Royanna's social media campaigns for RLC Leasing. Be direct and practical: what the numbers say, and what to do next.
+Judge by business results first (inquiries and rental leads), then saves/shares, then views. Small samples are noisy — say so when fewer than 5 posts have data.
+Return ONLY JSON: { "verdict": "continue|adjust|pause", "summary": "2–3 sentences", "changes": ["specific changes to make — formats, hooks, posting days, which apartments/markets to lean into"], "best": "which post worked best and why (or empty)", "worst": "which post worked worst and why (or empty)" }`
+  return ask(system, JSON.stringify(summary, null, 2), 8000)
+}

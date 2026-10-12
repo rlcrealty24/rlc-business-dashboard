@@ -15,6 +15,9 @@ import Planner from './pages/social/Planner.jsx'
 import IdeaBank from './pages/social/IdeaBank.jsx'
 import PostWorkspace from './pages/social/PostWorkspace.jsx'
 import PlanMonth from './pages/social/PlanMonth.jsx'
+import Library from './pages/social/Library.jsx'
+import Campaigns from './pages/social/Campaigns.jsx'
+import CampaignBuilder from './pages/social/CampaignBuilder.jsx'
 
 export default function App() {
   return (
@@ -31,6 +34,9 @@ export default function App() {
           <Route path="social/ideas" element={<IdeaBank />} />
           <Route path="social/post/:id" element={<PostWorkspace />} />
           <Route path="social/plan" element={<PlanMonth />} />
+          <Route path="social/library" element={<Library />} />
+          <Route path="social/campaigns" element={<Campaigns />} />
+          <Route path="social/campaigns/:id" element={<CampaignBuilder />} />
           <Route path="dashboard" element={<Navigate to="/today" replace />} />
           <Route path="finance" element={<Finance />} />
           <Route path="real-estate" element={<RealEstate />} />

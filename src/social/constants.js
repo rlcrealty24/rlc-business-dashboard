@@ -176,3 +176,23 @@ export const FORMATS = {
 }
 
 export const EFFORT_LABEL = { light: 'Light', medium: 'Medium', heavy: 'Heavy' }
+
+// ─── Content Library ─────────────────────────────────────────────────────────
+export const ASSET_KINDS = {
+  property_video: 'Property video',
+  property_photo: 'Property photo',
+  lifestyle: 'Lifestyle footage',
+  broll: 'B-roll',
+  closing_photo: 'Closing photo',
+  headshot: 'Headshot',
+  talking: 'Talking-head clip',
+  brand: 'Logo / brand asset',
+  screen_recording: 'Screen recording',
+  testimonial: 'Testimonial',
+  cover: 'Reel cover',
+  published: 'Published post',
+  photo: 'Photo',
+  other: 'Other',
+}
+export const MARKETS = ['Miami', 'Denver', 'Other']
+export const VIDEO_KINDS = new Set(['property_video', 'lifestyle', 'broll', 'talking', 'testimonial', 'screen_recording'])

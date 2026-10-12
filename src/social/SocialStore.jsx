@@ -18,7 +18,8 @@ const ITEM_FIELDS = ['id', 'title', 'brand', 'platforms', 'stage', 'format', 'pi
   'on_screen_text', 'shot_list', 'edit_notes', 'cover_concept', 'notes', 'steps', 'versions', 'assets', 'approval',
   'permission_confirmed', 'is_backlog', 'timeliness', 'lead_potential', 'effort', 'audience', 'source', 'source_ref',
   'metrics', 'archived', 'created_at']
-const CAMPAIGN_FIELDS = ['id', 'name', 'brand', 'type', 'status', 'start_date', 'duration_days', 'goal', 'notes', 'created_at']
+const CAMPAIGN_FIELDS = ['id', 'name', 'brand', 'type', 'status', 'start_date', 'duration_days', 'goal', 'notes', 'config', 'created_at']
+const ASSET_FIELDS = ['id', 'label', 'url', 'kind', 'brand', 'market', 'property', 'campaign_id', 'tags', 'notes', 'taken_on', 'created_at']
 const pick = (o, f) => Object.fromEntries(f.filter(k => k in o).map(k => [k, o[k] === '' ? null : o[k]]))
 const hhmm = t => (t ? String(t).slice(0, 5) : t)
 
@@ -27,6 +28,8 @@ export function SocialProvider({ children }) {
   const cache = (() => { try { return JSON.parse(localStorage.getItem(CACHE)) } catch { return null } })()
   const [items, setItems] = useState(cache?.items || [])
   const [campaigns, setCampaigns] = useState(cache?.campaigns || [])
+  const [assets, setAssets] = useState(cache?.assets || [])
+  const [libraryNeeded, setLibraryNeeded] = useState(false)   // Phase 3 SQL not run yet
   const [loading, setLoading] = useState(!cache)
   const [setupNeeded, setSetupNeeded] = useState(false)
   const [error, setError] = useState(null)
@@ -45,8 +48,12 @@ export function SocialProvider({ children }) {
     }
     setSetupNeeded(false); setError(null)
     setItems(a.data.map(i => ({ ...i, publish_time: hhmm(i.publish_time) })))
-    setCampaigns(b.data)
+    setCampaigns(b.data.map(c => ({ ...c, config: c.config || {} })))
     setLoading(false)
+    // Library lives in its own table; missing table must not break the rest of Social HQ
+    const lib = await supabase.from('content_assets').select('*').order('created_at', { ascending: false })
+    if (lib.error) setLibraryNeeded(true)
+    else { setLibraryNeeded(false); setAssets(lib.data) }
   }, [])
 
   useEffect(() => {
@@ -55,6 +62,7 @@ export function SocialProvider({ children }) {
     const ch = supabase.channel('social_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'content_items' }, reload)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'content_campaigns' }, reload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'content_assets' }, reload)
       .subscribe()
     window.addEventListener('focus', reload)
     return () => { supabase.removeChannel(ch); window.removeEventListener('focus', reload) }
@@ -62,8 +70,8 @@ export function SocialProvider({ children }) {
 
   useEffect(() => {
     if (loading) return
-    try { localStorage.setItem(CACHE, JSON.stringify({ items, campaigns })) } catch {}
-  }, [items, campaigns, loading])
+    try { localStorage.setItem(CACHE, JSON.stringify({ items, campaigns, assets })) } catch {}
+  }, [items, campaigns, assets, loading])
 
   // Film / Edit / Schedule slots from the CEO calendar, ~10 weeks around today
   const slots = useMemo(
@@ -157,6 +165,27 @@ export function SocialProvider({ children }) {
     return row
   }, [write])
 
+  const deleteCampaign = useCallback(async id => {
+    setCampaigns(list => list.filter(c => c.id !== id))
+    await write(supabase.from('content_campaigns').delete().eq('id', id))
+  }, [write])
+
+  // ── Library ──────────────────────────────────────────────────────────────
+  const saveAsset = useCallback(async a => {
+    const row = pick({ kind: 'photo', tags: [], created_at: new Date().toISOString(), ...a, id: a.id || uid() }, ASSET_FIELDS)
+    setAssets(list => (list.some(x => x.id === row.id) ? list.map(x => (x.id === row.id ? row : x)) : [row, ...list]))
+    await write(supabase.from('content_assets').upsert({ ...row, updated_at: new Date().toISOString() }))
+    return row
+  }, [write])
+  const deleteAsset = useCallback(async id => {
+    setAssets(list => list.filter(a => a.id !== id))
+    // unlink from posts that reference it
+    for (const i of items.filter(i => (i.assets || []).some(x => x.asset_id === id))) {
+      await saveItem({ ...i, assets: i.assets.filter(x => x.asset_id !== id) })
+    }
+    await write(supabase.from('content_assets').delete().eq('id', id))
+  }, [items, saveItem, write])
+
   const seeded = items.some(i => i.source === 'seed')
   const installSeed = useCallback(async () => {
     const camps = seedCampaigns()
@@ -169,7 +198,8 @@ export function SocialProvider({ children }) {
 
   const value = {
     items, campaigns, loading, setupNeeded, error, setError, reload: load, slots,
-    saveItem, updateItem, deleteItem, toggleStep, setStepDate, duplicate, capture, saveCampaign, seeded, installSeed,
+    saveItem, updateItem, deleteItem, toggleStep, setStepDate, duplicate, capture, saveCampaign, deleteCampaign, seeded, installSeed,
+    assets, libraryNeeded, saveAsset, deleteAsset,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
