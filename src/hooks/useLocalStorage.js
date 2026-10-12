@@ -23,7 +23,7 @@ function ensureRealtime() {
       { event: '*', schema: 'public', table: 'dashboard_data' },
       ({ new: row }) => {
         const k = row?.key
-        if (k && !k.startsWith('__')) listeners.get(k)?.forEach(cb => cb(row.value))
+        if (k && !k.startsWith('__')) listeners.get(k)?.forEach(cb => cb(row.value, row.updated_at))
       })
     .subscribe()
 }
@@ -39,6 +39,19 @@ function safeRead(key) {
 
 function safeWrite(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)) } catch {}
+}
+
+// When this device last changed / received each key. '__' keeps it out of the sync.
+const TS_KEY = '__ls_ts'
+function readTs() { try { return JSON.parse(localStorage.getItem(TS_KEY)) || {} } catch { return {} } }
+function getTs(key) { return readTs()[key] || null }
+const newer = (a, b) => Date.parse(a) > Date.parse(b)
+function setTs(key, ts) { try { localStorage.setItem(TS_KEY, JSON.stringify({ ...readTs(), [key]: ts })) } catch {} }
+
+// Supabase queries only run when awaited/then'd — a bare .upsert() never sends.
+function pushKey(key, value, ts) {
+  return supabase.from('dashboard_data').upsert({ key, value, updated_at: ts }, { onConflict: 'key' })
+    .then(({ error }) => { if (error) console.warn('[sync] save failed', key, error.message); return !error })
 }
 
 // ─── Bulk sync (called from Layout on every mount) ────────────────────────────
@@ -60,13 +73,17 @@ export async function bulkSync() {
       if (localVal === null || localVal === undefined) continue
       const remoteEntry = remote.get(key)
       const remoteVal   = remoteEntry?.value ?? null
-      const localLen    = richness(localVal)
-      const remoteLen   = richness(remoteVal)
+      const localTs     = getTs(key)
+      const remoteTs    = remoteEntry?.ts || null
+      // Newest change wins. Keys with no local timestamp yet (older app version) fall back to size.
+      const pushIt = localTs ? (!remoteTs || newer(localTs, remoteTs)) : richness(localVal) > richness(remoteVal)
+      const pullIt = localTs ? (remoteTs && newer(remoteTs, localTs)) : richness(remoteVal) > richness(localVal)
 
-      if (localLen > remoteLen) {
-        toPush.push({ key, value: localVal, updated_at: now })
-      } else if (remoteLen > localLen) {
+      if (pushIt) {
+        toPush.push({ key, value: localVal, updated_at: localTs || now })
+      } else if (pullIt) {
         safeWrite(key, remoteVal)
+        setTs(key, remoteTs)
         // Notify hooks to update React state — no page reload needed
         window.dispatchEvent(new CustomEvent('ls-sync', { detail: { key, value: remoteVal } }))
       }
@@ -79,6 +96,7 @@ export async function bulkSync() {
         const len = richness(remoteVal)
         if (len > 0) {
           safeWrite(key, remoteVal)
+          setTs(key, remote.get(key).ts)
           window.dispatchEvent(new CustomEvent('ls-sync', { detail: { key, value: remoteVal } }))
         }
       }
@@ -86,9 +104,7 @@ export async function bulkSync() {
 
     // Push local-richer keys in parallel
     if (toPush.length > 0) {
-      await Promise.allSettled(toPush.map(row =>
-        supabase.from('dashboard_data').upsert(row, { onConflict: 'key' })
-      ))
+      await Promise.allSettled(toPush.map(row => pushKey(row.key, row.value, row.updated_at)))
     }
   } catch {}
 }
@@ -138,13 +154,14 @@ export function useLocalStorage(key, initialValue) {
   useEffect(() => {
     if (LOCAL_ONLY.has(key)) return
     ensureRealtime()
-    const cb = (incomingValue) => {
+    const cb = (incomingValue, ts) => {
       if (incomingValue === null || incomingValue === undefined) return
-      const localVal = safeRead(key)
-      if (richness(incomingValue) < richness(localVal)) return
+      const localTs = getTs(key)
+      if (localTs && ts && !newer(ts, localTs)) return   // our own echo, or older than what we have
       isSyncApply.current = true
       setValue(incomingValue)
       safeWrite(key, incomingValue)
+      if (ts) setTs(key, ts)
     }
     if (!listeners.has(key)) listeners.set(key, new Set())
     listeners.get(key).add(cb)
@@ -158,8 +175,9 @@ export function useLocalStorage(key, initialValue) {
     if (isSyncApply.current)  { isSyncApply.current  = false; return }
     if (LOCAL_ONLY.has(key)) return
     if (value === null || value === undefined) return
-    supabase.from('dashboard_data')
-      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    const ts = new Date().toISOString()
+    setTs(key, ts)
+    pushKey(key, value, ts)
   }, [key, value])
 
   return [value, setValue]
