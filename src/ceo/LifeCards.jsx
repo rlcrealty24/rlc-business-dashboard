@@ -4,6 +4,7 @@
 import { Link } from 'react-router-dom'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { useCeo } from './CeoStore.jsx'
+import { focusDay } from './TaskCoach.jsx'
 import { addDays, fmtDate, pad, parseISO, todayISO } from './recurrence.js'
 import { formatCurrency, parseDateSafe } from '../utils/formatters.js'
 
@@ -113,7 +114,7 @@ export function ImportantTasks() {
 
   const rows = [
     ...tasks
-      .filter(t => t.status !== 'done' && t.focus_date !== today)
+      .filter(t => t.status !== 'done' && t.focus_date !== focusDay())
       .filter(t => t.priority === 'high' || (t.due_date && t.due_date <= soon))
       .map(t => ({ key: `c${t.id}`, title: t.title, due: t.due_date, prio: t.priority, from: 'Inbox', href: '/inbox',
         complete: () => updateTask(t, { status: 'done', completed_at: new Date().toISOString() }) })),

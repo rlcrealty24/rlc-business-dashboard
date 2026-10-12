@@ -12,6 +12,9 @@ import { toast } from './ui.jsx'
 const RANK = { high: 0, medium: 1, low: 2 }
 const MONEY = /\b(lead|leads|call|client|buyer|seller|tenant|renter|listing|showing|offer|closing|close|commission|contract|follow[- ]?up|prospect|deal|lease|referral|invoice|payment)\b/i
 
+/** The day your Top 3 is for: after 8 PM you're planning tomorrow */
+export const focusDay = () => (new Date().getHours() >= 20 ? addDays(todayISO(), 1) : todayISO())
+
 /** Every open task in one shape */
 export function useOpenTasks() {
   const { tasks, updateTask } = useCeo()
@@ -19,7 +22,7 @@ export function useOpenTasks() {
   const list = useMemo(() => [
     ...tasks.filter(t => t.status !== 'done').map(t => ({
       key: `c:${t.id}`, title: t.title, notes: t.notes || '', priority: t.priority || null, due: t.due_date || null,
-      created: (t.created_at || '').slice(0, 10), from: t.status === 'inbox' ? 'Inbox' : 'Next', focus: t.focus_date === todayISO(), raw: t,
+      created: (t.created_at || '').slice(0, 10), from: t.status === 'inbox' ? 'Inbox' : 'Next', focus: t.focus_date === focusDay(), raw: t,
     })),
     ...(Array.isArray(projectTasks) ? projectTasks : []).filter(t => t.status !== 'Done').map(t => ({
       key: `p:${t.id}`, title: t.title || t.text, notes: t.description || t.notes || '', priority: (t.priority || '').toLowerCase() || null,
@@ -96,13 +99,13 @@ export default function TaskCoach({ limit = 6 }) {
     const pr = new Map((result.order || []).map(o => [o.key, o.priority]))
     const top = (result.top3 || []).filter(k => byKey.has(k))
     const currentTop = list.filter(t => t.focus && !top.includes(t.key))
-    if (currentTop.length && !window.confirm(`Replace today's Top 3 with the suggested ones? (${currentTop.map(t => t.title).join(', ')} will move back to your list.)`)) return
+    if (currentTop.length && !window.confirm(`Replace your Top 3 with the suggested ones? (${currentTop.map(t => t.title).join(', ')} will move back to your list.)`)) return
     for (const t of list.filter(t => t.key.startsWith('c:'))) {
       const patch = {}
       const p = pr.get(t.key)
       if (p && p !== t.priority) patch.priority = p
       const wantFocus = top.includes(t.key)
-      if (wantFocus && !t.focus) patch.focus_date = today
+      if (wantFocus && !t.focus) patch.focus_date = focusDay()
       if (!wantFocus && t.focus) patch.focus_date = null
       if (t.raw.status === 'inbox' && p) patch.status = 'next'
       if (Object.keys(patch).length) await updateTask(t.raw, patch)
@@ -160,7 +163,7 @@ export default function TaskCoach({ limit = 6 }) {
               {o?.when && <span className={`c-chip${o.when === 'today' ? ' sky' : ''}`}>{o.when}</span>}
               {o?.minutes ? <span className="c-chip">~{o.minutes} min</span> : null}
               {t.due && <span className={`c-chip${t.due < today ? ' red' : t.due <= addDays(today, 2) ? ' warn' : ''}`}>{t.due < today ? 'Overdue' : `Due ${fmtDate(t.due, { month: 'short', day: 'numeric' })}`}</span>}
-              {(t.focus || result?.top3?.includes(t.key)) && <span className="c-chip sky">★ Top 3</span>}
+              {t.focus ? <span className="c-chip sky">★ Top 3</span> : result?.top3?.includes(t.key) ? <span className="c-chip" title="Suggested — press Apply or 'Use these' in Top 3">☆ suggested Top 3</span> : null}
               {isNew && <span className="c-chip">new</span>}
               <span className="c-chip">{t.from}</span>
             </div>

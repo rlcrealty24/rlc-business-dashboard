@@ -6,7 +6,7 @@ import { CATEGORIES, PORTAL_URL } from '../ceo/constants.js'
 import { addDays, fmtDate, fmtTime, todayISO } from '../ceo/recurrence.js'
 import { Modal, Tick } from '../ceo/ui.jsx'
 import { useCalendarItems } from '../ceo/useCalendarItems.js'
-import TaskCoach from '../ceo/TaskCoach.jsx'
+import TaskCoach, { focusDay } from '../ceo/TaskCoach.jsx'
 import BrainDumpReview from '../ceo/BrainDump.jsx'
 import { isList, splitLines } from '../ceo/brainDump.js'
 
@@ -38,7 +38,7 @@ export default function Inbox() {
   const next = tasks.filter(t => t.status === 'next')
     .sort((a, b) => (PRIO_ORDER[a.priority] ?? 3) - (PRIO_ORDER[b.priority] ?? 3) || (a.due_date || '9').localeCompare(b.due_date || '9'))
   const done = tasks.filter(t => t.status === 'done').sort((a, b) => (b.completed_at || '').localeCompare(a.completed_at || '')).slice(0, 30)
-  const focusCount = tasks.filter(t => t.focus_date === today && t.status !== 'done').length
+  const focusCount = tasks.filter(t => t.focus_date === focusDay() && t.status !== 'done').length
 
   // Open portal tasks (deal / contact tasks) — read-only, from the live feed
   const { all } = useCalendarItems(addDays(today, -30), addDays(today, 30))
@@ -132,7 +132,7 @@ function TaskRow({ task: t, focusCount }) {
   const [title, setTitle] = useState(t.title)
   const today = todayISO()
   const isDone = t.status === 'done'
-  const focused = t.focus_date === today
+  const focused = t.focus_date === focusDay()
   const cyclePrio = () => updateTask(t, { priority: PRIOS[(PRIOS.indexOf(t.priority) + 1) % 3], status: t.status === 'inbox' ? 'next' : t.status })
 
   return (
@@ -160,7 +160,7 @@ function TaskRow({ task: t, focusCount }) {
         <div className="c-task-actions">
           {!t.priority && PRIOS.map(p => <button key={p} className={`c-chip c-prio-${p}`} onClick={() => updateTask(t, { priority: p, status: 'next' })}>{p[0].toUpperCase()}</button>)}
           <button className={`c-chip${focused ? ' sky' : ''}`} disabled={!focused && focusCount >= 3} title={!focused && focusCount >= 3 ? 'Top 3 is full' : 'Today\'s Top 3'}
-            onClick={() => updateTask(t, { focus_date: focused ? null : today, status: t.status === 'inbox' ? 'next' : t.status })}>★</button>
+            onClick={() => updateTask(t, { focus_date: focused ? null : focusDay(), status: t.status === 'inbox' ? 'next' : t.status })}>★</button>
           <button className="c-chip" onClick={() => setScheduling(s => !s)}>Schedule</button>
           <button className="c-chip" onClick={() => deleteTask(t.id)} aria-label="Delete">✕</button>
         </div>
@@ -216,7 +216,7 @@ function Triage({ tasks, focusCount, onClose }) {
     <Modal eyebrow={`Triage · ${idx + 1} of ${queue.length}`} title={t.title} onClose={onClose}>
       <div className="c-label">What is this?</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 8 }}>
-        <button className="c-btn c-btn-sky" disabled={focusCount >= 3} onClick={() => { updateTask(t, { status: 'next', priority: 'high', focus_date: today }); next() }}>
+        <button className="c-btn c-btn-sky" disabled={focusCount >= 3} onClick={() => { updateTask(t, { status: 'next', priority: 'high', focus_date: focusDay() }); next() }}>
           ★ Top 3 today{focusCount >= 3 ? ' (full)' : ''}
         </button>
         <button className="c-btn" onClick={() => { updateTask(t, { status: 'next', priority: 'high' }); next() }}>Next · High</button>

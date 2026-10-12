@@ -10,7 +10,8 @@ import ItemSheet from '../ceo/ItemSheet.jsx'
 import { openCapture } from '../ceo/QuickCapture.jsx'
 import { PortalCard, PulseCard, SetupNeeded, StarterCard } from '../ceo/SetupCards.jsx'
 import { MoneyCard } from '../ceo/LifeCards.jsx'
-import TaskCoach from '../ceo/TaskCoach.jsx'
+import TaskCoach, { focusDay } from '../ceo/TaskCoach.jsx'
+import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import MarketingCard from '../social/MarketingCard.jsx'
 import SuggestionsCard from '../social/Suggestions.jsx'
 
@@ -41,7 +42,8 @@ export default function Today() {
   const doneToday = ceoToday.filter(i => i.status === 'done').length
   const openItem = openKey && [...byDate.values()].flat().find(i => i.key === openKey)
 
-  const top3 = tasks.filter(t => t.focus_date === today)
+  const top3Day = focusDay()
+  const top3 = tasks.filter(t => t.focus_date === top3Day)
   const inboxCount = tasks.filter(t => t.status === 'inbox').length
 
   const comingUp = useMemo(() => {
@@ -126,7 +128,7 @@ export default function Today() {
           )}
 
           {/* Top 3 */}
-          <Top3 tasks={top3} today={today} saveTask={saveTask} updateTask={updateTask} />
+          <Top3 tasks={top3} today={top3Day} isTomorrow={top3Day !== today} allTasks={tasks} saveTask={saveTask} updateTask={updateTask} />
 
           <MarketingCard />
           <SuggestionsCard compact />
@@ -247,15 +249,19 @@ function Header({ onFocus, canFocus }) {
   )
 }
 
-function Top3({ tasks: all, today, saveTask, updateTask }) {
+function Top3({ tasks: all, today, isTomorrow, allTasks, saveTask, updateTask }) {
   const [text, setText] = useState('')
+  // Picks from "What to do first" that aren't in your Top 3 yet
+  const [coach] = useLocalStorage('task_coach', null)
+  const open = new Map(allTasks.filter(t => t.status !== 'done').map(t => [`c:${t.id}`, t]))
+  const suggested = (coach?.result?.top3 || []).map(k => open.get(k)).filter(t => t && t.focus_date !== today)
   // Completed tasks drop off the list (they're marked done everywhere)
   const done = all.filter(t => t.status === 'done').length
   const tasks = all.filter(t => t.status !== 'done')
   return (
     <div className="c-card">
       <div className="c-card-head">
-        <div className="c-card-title">Today&apos;s Top 3</div>
+        <div className="c-card-title">{isTomorrow ? 'Tomorrow\u2019s Top 3' : 'Today\u2019s Top 3'}</div>
         <span className="c-label">{done ? `✓ ${done} done` : `${tasks.length}/3`}</span>
       </div>
       {tasks.map(t => (
@@ -268,6 +274,15 @@ function Top3({ tasks: all, today, saveTask, updateTask }) {
           <button className="c-btn c-btn-ghost c-btn-sm" title="Remove from Top 3" onClick={() => updateTask(t, { focus_date: null })}>✕</button>
         </div>
       ))}
+      {tasks.length < 3 && suggested.length > 0 && (
+        <div className="c-card-body" style={{ background: 'var(--sky-soft)', borderBottom: '1px solid var(--border)' }}>
+          <div className="c-muted" style={{ fontSize: 12, marginBottom: 6 }}>Suggested by “What to do first”</div>
+          {suggested.slice(0, 3 - tasks.length).map(t => <div key={t.id} style={{ fontSize: 14, padding: '2px 0' }}>☆ {t.title}</div>)}
+          <button className="c-btn c-btn-sky c-btn-sm" style={{ marginTop: 8 }} onClick={() => suggested.slice(0, 3 - tasks.length).forEach(t => updateTask(t, { focus_date: today, status: t.status === 'inbox' ? 'next' : t.status }))}>
+            Use {Math.min(suggested.length, 3 - tasks.length) === 1 ? 'this' : 'these'}
+          </button>
+        </div>
+      )}
       {tasks.length < 3 ? (
         <form className="c-card-body" style={{ display: 'flex', gap: 8 }} onSubmit={e => {
           e.preventDefault(); if (!text.trim()) return
