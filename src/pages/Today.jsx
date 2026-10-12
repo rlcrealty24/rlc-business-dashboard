@@ -244,7 +244,6 @@ function Clocks() {
   return (
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '10px 0 6px' }}>
       <span className="c-chip" title={`Based on this device's time zone (${here})`}>📍 {place}</span>
-      <span className="c-chip">{now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
       {ZONES.map(([tz, label]) => {
         const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).formatToParts(now)
         const time = parts.filter(p => p.type !== 'timeZoneName').map(p => p.value).join('').trim()
