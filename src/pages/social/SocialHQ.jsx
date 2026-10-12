@@ -7,6 +7,7 @@ import { marketingSummary } from '../../social/insights.js'
 import { BrandChip, DueChip, SocialNav, SocialSetupNeeded, platformsLabel } from '../../social/ui.jsx'
 import { toast } from '../../ceo/ui.jsx'
 import { useVerifiedLeads } from '../../social/attribution.js'
+import SuggestionsCard from '../../social/Suggestions.jsx'
 import { addDays, daysBetween, fmtDate, todayISO } from '../../ceo/recurrence.js'
 
 export default function SocialHQ() {
@@ -50,6 +51,8 @@ export default function SocialHQ() {
           <Link className="c-btn c-btn-ink c-btn-sm" to="/social/ideas">Open Idea bank</Link>
         </div>
       )}
+
+      <div style={{ marginBottom: 20 }}><SuggestionsCard /></div>
 
       <div className="c-stats" style={{ marginBottom: 20 }}>
         {Object.entries(BRANDS).map(([k, b]) => {
@@ -159,14 +162,6 @@ export default function SocialHQ() {
             </Link>
           </div>
 
-          <div className="c-card">
-            <div className="c-card-head"><div className="c-card-title">Coming next</div></div>
-            <div className="c-card-body c-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
-              Now live: AI strategist on every post (open a post → Develop with AI) and the <Link className="c-link" to="/social/plan">30-day plan</Link>.<br />
-              Phase 3: agent submissions, asset library, Campaign Builder.<br />
-              Now live: tracking links on every post, verified leads from your CRM, and monthly <Link className="c-link" to="/social/insights">Insights</Link>.
-            </div>
-          </div>
         </div>
       </div>
     </div>

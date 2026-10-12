@@ -11,6 +11,7 @@ import { openCapture } from '../ceo/QuickCapture.jsx'
 import { PortalCard, PulseCard, SetupNeeded, StarterCard } from '../ceo/SetupCards.jsx'
 import { ImportantTasks, MoneyCard } from '../ceo/LifeCards.jsx'
 import MarketingCard from '../social/MarketingCard.jsx'
+import SuggestionsCard from '../social/Suggestions.jsx'
 
 const live = i => i.status !== 'skipped' && !i.bumpedBy
 
@@ -127,6 +128,7 @@ export default function Today() {
           <Top3 tasks={top3} today={today} saveTask={saveTask} updateTask={updateTask} />
 
           <MarketingCard />
+          <SuggestionsCard compact />
 
           {/* Timeline */}
           <div className="c-card">
