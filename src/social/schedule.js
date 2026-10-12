@@ -46,7 +46,9 @@ export function dateSteps(steps, publishDate, slots) {
   const lo = d => (d < today ? today : d)
   const schedule = latestIn(slots.schedule, lo(addDays(P, -6)), addDays(P, -1)) || lo(addDays(P, -1))
   const edit = latestIn(slots.edit, lo(addDays(P, -9)), schedule) || lo(addDays(schedule, -1))
-  const film = has('film') ? (latestIn(slots.film, lo(addDays(P, -14)), addDays(edit, -1)) || lo(addDays(edit, -1))) : null
+  // A pinned (or finished) filming day wins — earlier prep steps count back from it
+  const pinned = k => steps.find(s => s.anchor === k && (s.fixed || s.done) && s.due)?.due
+  const film = has('film') ? (pinned('film') || latestIn(slots.film, lo(addDays(P, -14)), addDays(edit, -1)) || lo(addDays(edit, -1))) : null
   const gather = lo(addDays(film || edit, -2))
   const plan = lo(addDays(gather, -1))
   const approve = edit   // approve right after the edit, so scheduling day is just loading posts

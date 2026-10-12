@@ -17,7 +17,7 @@ import { addDays, fmtDate, todayISO } from '../../ceo/recurrence.js'
 export default function CampaignBuilder() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { campaigns, items, assets, slots, saveCampaign, deleteCampaign, saveItem, updateItem, setupNeeded, loading } = useSocial()
+  const { campaigns, items, assets, slots, updateCampaign, deleteCampaign, saveItem, updateItem, setupNeeded, loading } = useSocial()
   const c = campaigns.find(x => x.id === id)
   const posts = useMemo(() => live(items).filter(i => i.campaign_id === id).sort((a, b) => (a.publish_date || '').localeCompare(b.publish_date || '')), [items, id])
 
@@ -26,8 +26,9 @@ export default function CampaignBuilder() {
 
   const cfg = c.config || {}
   const template = cfg.template || (c.type === 'apartments' ? 'apartments' : 'custom')
-  const setCfg = patch => saveCampaign({ ...c, config: { ...cfg, ...patch } })
-  const set = patch => saveCampaign({ ...c, ...patch })
+  // Always merge onto the latest saved campaign so quick edits never overwrite each other
+  const setCfg = patch => updateCampaign(c.id, {}, patch)
+  const set = patch => updateCampaign(c.id, patch)
   const locked = c.status !== 'proposed'
   const end = c.start_date && c.duration_days ? addDays(c.start_date, c.duration_days - 1) : null
 
@@ -83,7 +84,7 @@ export default function CampaignBuilder() {
       </div>
 
       {template === 'apartments'
-        ? <ApartmentCampaign c={c} cfg={cfg} setCfg={setCfg} set={set} posts={posts} assets={assets} slots={slots} saveItem={saveItem} />
+        ? <ApartmentCampaign c={c} cfg={cfg} setCfg={setCfg} set={set} posts={posts} assets={assets} slots={slots} saveItem={saveItem} updateCampaign={updateCampaign} />
         : <TemplateCampaign c={c} template={template} posts={posts} saveItem={saveItem} set={set} />}
 
       {posts.length > 0 && <Results c={c} posts={posts} cfg={cfg} setCfg={setCfg} />}
@@ -92,7 +93,7 @@ export default function CampaignBuilder() {
 }
 
 // ─── Apartment series ───────────────────────────────────────────────────────
-function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem }) {
+function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem, updateCampaign }) {
   const { listings, loading: listingsLoading } = useLeasingListings()
   const [adding, setAdding] = useState(false)
   const [open, setOpen] = useState(null)
@@ -125,6 +126,7 @@ function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem
   const flags = launchFlags(cfg, assets)
 
   const saveApts = list => setCfg({ apartments: list })
+  const setCfgFn = fn => updateCampaign(c.id, {}, fn)   // fn(latestConfig) → patch
   const importListings = () => {
     const have = new Set(apartments.map(a => a.listing_id).filter(Boolean))
     const fresh = listings.filter(l => !have.has(l.id)).map(l => ({
@@ -135,9 +137,9 @@ function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem
     saveApts([...apartments, ...fresh])
     toast(`${fresh.length} apartment${fresh.length === 1 ? '' : 's'} imported`, 'From your RLC Leasing site')
   }
-  const updateApt = (key, patch) => saveApts(apartments.map(a => (a.key === key ? { ...a, ...patch } : a)))
+  const updateApt = (key, patch) => setCfgFn(cur => ({ apartments: (cur.apartments || []).map(a => (a.key === key ? { ...a, ...patch } : a)) }))
   const removeApt = key => { setCfg({ apartments: apartments.filter(a => a.key !== key), schedule: schedule.map(r => (r.aptKey === key && !r.item_id ? { ...r, aptKey: null } : r)) }) }
-  const setRow = (key, patch) => setCfg({ schedule: schedule.map(r => (r.key === key ? { ...r, ...patch } : r)) })
+  const setRow = (key, patch) => setCfgFn(cur => ({ schedule: (cur.schedule || []).map(r => (r.key === key ? { ...r, ...patch } : r)) }))
 
   async function writeCopy() {
     const rows = schedule.filter(r => r.aptKey && !r.item_id && !r.hook).map(r => ({ key: r.key, date: r.date, apt: byKey.get(r.aptKey) }))
@@ -156,7 +158,8 @@ function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem
     if (!window.confirm(`Launch "${c.name}"? This creates ${schedule.filter(r => r.aptKey && !r.item_id).length} posts on your plan with their filming/editing steps. Your personal and RLC accounts keep their normal rhythm.`)) return
     setBusy('launch')
     const created = []
-    for (const { rowKey, item } of apartmentPosts({ ...c, config: cfg }, assets)) {
+    const filmDates = new Map(sessions.flatMap(s => s.apartments.map(a => [a.key, s.date])))
+    for (const { rowKey, item } of apartmentPosts({ ...c, config: cfg }, assets, filmDates)) {
       const row = await saveItem(item)
       created.push([rowKey, row.id])
     }
@@ -278,13 +281,15 @@ function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem
             <div className="c-card-head"><div className="c-card-title">Filming plan</div><span className="c-muted" style={{ fontSize: 12 }}>Batch by market on Film days</span></div>
             {sessions.length === 0 && <div className="c-empty">{assigned.length ? 'Nothing left to film.' : 'Assign apartments to see the filming plan.'}</div>}
             {sessions.map(s => {
-              const editDay = slots.edit.find(d => d > s.date) || addDays(s.date, 1)
+              const editDay = slots.edit.find(d => d > s.date) || nextWeekday(s.date)
+              const clash = sessions.some(o => o !== s && o.date === s.date && o.market !== s.market)
               return (
                 <div key={s.date + s.market} className="c-tl-row" style={{ gridTemplateColumns: '1fr', cursor: 'default' }}>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 500 }}>{fmtDate(s.date)} · film {s.apartments.length} in {s.market}{s.late ? ' (late — film ASAP)' : ''}</div>
                     <div className="c-muted" style={{ fontSize: 12, marginTop: 3 }}>{s.apartments.map(a => a.name).join(', ')}</div>
                     <div className="c-muted" style={{ fontSize: 12 }}>Edit the batch {fmtDate(editDay)}</div>
+                    {clash && <div style={{ fontSize: 12, color: '#b45309', marginTop: 3 }}>Miami and Denver are both on this day — film whichever city you&apos;re in and push the other to your next Film day there.</div>}
                   </div>
                 </div>
               )
@@ -296,6 +301,8 @@ function ApartmentCampaign({ c, cfg, setCfg, set, posts, assets, slots, saveItem
     </div>
   )
 }
+
+const nextWeekday = d => { let x = addDays(d, 1); while ([0, 6].includes(new Date(x + 'T00:00:00').getDay())) x = addDays(x, 1); return x }
 
 const pickCopy = o => ({ hook: o.hook || null, caption: o.caption || null, on_screen_text: o.on_screen_text || null, cta: o.cta || null, notes: o.notes || null })
 

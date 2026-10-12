@@ -34,6 +34,8 @@ export function SocialProvider({ children }) {
   const [setupNeeded, setSetupNeeded] = useState(false)
   const [error, setError] = useState(null)
   const timer = useRef(null)
+  const itemsRef = useRef(items); itemsRef.current = items
+  const campaignsRef = useRef(campaigns); campaignsRef.current = campaigns
 
   const load = useCallback(async () => {
     const [a, b] = await Promise.all([
@@ -101,19 +103,20 @@ export function SocialProvider({ children }) {
   }, [slots])
 
   const saveItem = useCallback(async (item) => {
-    const prev = items.find(i => i.id === item.id)
+    const prev = itemsRef.current.find(i => i.id === item.id)
     const row = pick(prepare({
       brand: 'personal', platforms: ['instagram'], stage: 'idea', priority: 'medium', steps: [], versions: {}, assets: [],
       metrics: {}, approval: 'draft', permission_confirmed: false, is_backlog: false, archived: false,
       created_at: new Date().toISOString(), ...prev, ...item, id: item.id || uid(),
     }, prev), ITEM_FIELDS)
-    setItems(list => (prev ? list.map(i => (i.id === row.id ? row : i)) : [...list, row]))
+    itemsRef.current = prev ? itemsRef.current.map(i => (i.id === row.id ? row : i)) : [...itemsRef.current, row]
+    setItems(itemsRef.current)
     await write(supabase.from('content_items').upsert({ ...row, updated_at: new Date().toISOString() }))
     return row
   }, [items, prepare, write])
 
   const updateItem = useCallback((id, patch) => {
-    const cur = items.find(i => i.id === id)
+    const cur = itemsRef.current.find(i => i.id === id)
     return cur ? saveItem({ ...cur, ...patch }) : null
   }, [items, saveItem])
 
@@ -124,7 +127,7 @@ export function SocialProvider({ children }) {
 
   /** Tick one checklist item, or a whole step (stepItemId null) */
   const toggleStep = useCallback((id, stepKey, itemId = null) => {
-    const cur = items.find(i => i.id === id)
+    const cur = itemsRef.current.find(i => i.id === id)
     if (!cur) return
     const steps = cur.steps.map(s => {
       if (s.key !== stepKey) return s
@@ -140,13 +143,13 @@ export function SocialProvider({ children }) {
 
   /** Change a single step's date (stays put on future reschedules) */
   const setStepDate = useCallback((id, stepKey, due) => {
-    const cur = items.find(i => i.id === id)
+    const cur = itemsRef.current.find(i => i.id === id)
     if (!cur) return
     return saveItem({ ...cur, steps: cur.steps.map(s => (s.key === stepKey ? { ...s, due, fixed: !!due } : s)) })
   }, [items, saveItem])
 
   const duplicate = useCallback((id, overrides = {}) => {
-    const cur = items.find(i => i.id === id)
+    const cur = itemsRef.current.find(i => i.id === id)
     if (!cur) return null
     return saveItem({
       ...cur, id: uid(), title: overrides.title || `${cur.title} (copy)`, stage: 'idea', publish_date: null,
@@ -160,10 +163,21 @@ export function SocialProvider({ children }) {
 
   const saveCampaign = useCallback(async c => {
     const row = pick({ status: 'proposed', brand: 'leasing', created_at: new Date().toISOString(), ...c, id: c.id || uid() }, CAMPAIGN_FIELDS)
-    setCampaigns(list => (list.some(x => x.id === row.id) ? list.map(x => (x.id === row.id ? row : x)) : [...list, row]))
+    const cl = campaignsRef.current
+    campaignsRef.current = cl.some(x => x.id === row.id) ? cl.map(x => (x.id === row.id ? row : x)) : [...cl, row]
+    setCampaigns(campaignsRef.current)
     await write(supabase.from('content_campaigns').upsert({ ...row, updated_at: new Date().toISOString() }))
     return row
   }, [write])
+
+  /** Patch a campaign (and/or its config) on top of the latest saved version */
+  const updateCampaign = useCallback((id, patch = {}, configPatch = null) => {
+    const cur = campaignsRef.current.find(c => c.id === id)
+    if (!cur) return null
+    const base = { ...(cur.config || {}), ...(patch.config || {}) }
+    const extra = typeof configPatch === 'function' ? configPatch(base) : configPatch
+    return saveCampaign({ ...cur, ...patch, config: extra ? { ...base, ...extra } : base })
+  }, [saveCampaign])
 
   const deleteCampaign = useCallback(async id => {
     setCampaigns(list => list.filter(c => c.id !== id))
@@ -198,7 +212,7 @@ export function SocialProvider({ children }) {
 
   const value = {
     items, campaigns, loading, setupNeeded, error, setError, reload: load, slots,
-    saveItem, updateItem, deleteItem, toggleStep, setStepDate, duplicate, capture, saveCampaign, deleteCampaign, seeded, installSeed,
+    saveItem, updateItem, deleteItem, toggleStep, setStepDate, duplicate, capture, saveCampaign, updateCampaign, deleteCampaign, seeded, installSeed,
     assets, libraryNeeded, saveAsset, deleteAsset,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

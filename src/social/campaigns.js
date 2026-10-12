@@ -84,22 +84,28 @@ export function autoAssign(schedule, apartments, assets) {
   })
 }
 
-/** Group apartments that still need filming into batch sessions on Film days */
+/** Group apartments that still need filming into as few sessions as possible (Film days first, never weekends) */
 export function filmingSessions(schedule, apartments, assets, slots, filmedKeys = new Set()) {
   const today = todayISO()
   const byKey = new Map(apartments.map(a => [a.key, a]))
-  const sessions = new Map()
-  for (const r of schedule) {
+  const weekday = d => { const w = parseISO(d).getDay(); return w !== 0 && w !== 6 }
+  const sessions = []
+  const seen = new Set()
+  for (const r of [...schedule].sort((a, b) => a.date.localeCompare(b.date))) {
     const apt = byKey.get(r.aptKey)
-    if (!apt || hasFootage(apt, assets) || filmedKeys.has(apt.key)) continue
-    const latest = addDays(r.date, -3)
-    const day = [...slots.film].reverse().find(d => d >= today && d <= latest) || (latest >= today ? latest : today)
-    const key = `${day}|${apt.market || 'Other'}`
-    if (!sessions.has(key)) sessions.set(key, { date: day, market: apt.market || 'Other', apartments: [], late: latest < today })
-    const s = sessions.get(key)
-    if (!s.apartments.some(a => a.key === apt.key)) s.apartments.push(apt)
+    if (!apt || seen.has(apt.key) || hasFootage(apt, assets) || filmedKeys.has(apt.key)) continue
+    seen.add(apt.key)
+    const market = apt.market || 'Other'
+    const latest = addDays(r.date, -3)   // film at least 3 days before it posts
+    // Join an existing session for this market if it's still early enough
+    const join = sessions.find(s => s.market === market && s.date >= today && s.date <= latest)
+    if (join) { join.apartments.push(apt); continue }
+    let day = [...slots.film].reverse().find(d => d >= today && d <= latest)
+    if (!day) { day = latest; while (day >= today && !weekday(day)) day = addDays(day, -1) }
+    const late = !day || day < today
+    sessions.push({ date: late ? today : day, market, apartments: [apt], late })
   }
-  return [...sessions.values()].sort((a, b) => a.date.localeCompare(b.date))
+  return sessions.sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /** Pre-launch problems worth fixing */
@@ -123,13 +129,19 @@ export function launchFlags(config, assets) {
 }
 
 /** Content items to create at launch (apartment series) */
-export function apartmentPosts(campaign, assets) {
+export function apartmentPosts(campaign, assets, filmDates = new Map()) {
   const cfg = campaign.config || {}
   const byKey = new Map((cfg.apartments || []).map(a => [a.key, a]))
   return (cfg.schedule || []).filter(r => r.aptKey && !r.item_id).map(r => {
     const apt = byKey.get(r.aptKey)
     const footage = hasFootage(apt, assets)
-    const steps = buildSteps('apartment_tour').map(s => (footage && s.key === 'film') ? { ...s, done: true, items: s.items.map(x => ({ ...x, done: true })) } : s)
+    const filmOn = filmDates.get(r.aptKey)
+    const steps = buildSteps('apartment_tour').map(s => {
+      if (s.key !== 'film') return s
+      if (footage) return { ...s, done: true, items: s.items.map(x => ({ ...x, done: true })) }
+      // Same day as the batch filming session in the campaign's filming plan
+      return filmOn ? { ...s, due: filmOn, fixed: true } : s
+    })
     return {
       rowKey: r.key,
       item: {
