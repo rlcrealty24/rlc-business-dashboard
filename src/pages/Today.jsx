@@ -9,7 +9,8 @@ import { Checklist, ItemBadges, Progress, Tick } from '../ceo/ui.jsx'
 import ItemSheet from '../ceo/ItemSheet.jsx'
 import { openCapture } from '../ceo/QuickCapture.jsx'
 import { PortalCard, PulseCard, SetupNeeded, StarterCard } from '../ceo/SetupCards.jsx'
-import { ImportantTasks, MoneyCard } from '../ceo/LifeCards.jsx'
+import { MoneyCard } from '../ceo/LifeCards.jsx'
+import TaskCoach from '../ceo/TaskCoach.jsx'
 import MarketingCard from '../social/MarketingCard.jsx'
 import SuggestionsCard from '../social/Suggestions.jsx'
 
@@ -185,8 +186,8 @@ export default function Today() {
             </div>
           </div>
 
+          <TaskCoach />
           <MoneyCard />
-          <ImportantTasks />
           <PulseCard />
 
           <div className="c-card">

@@ -183,3 +183,28 @@ Be specific and honest — name posts and formats. If there is too little data t
 Return ONLY JSON: { "summary": "3–4 sentences: what generated business this month and why", "keep": ["what to keep doing"], "change": ["what to stop or change"], "next_month": ["2–4 concrete content moves for next month"] }`
   return ask(system, JSON.stringify(data, null, 2), 8000)
 }
+
+export { ask as askJSON }
+
+/** Order Royanna's open tasks: what first, in what order, what can wait or go. */
+export async function prioritizeTasks({ tasks, today, now, schedule }) {
+  const system = `You are Royanna Carbajal's chief of staff. She is broker/owner of RLC Realty Co. (Florida + Colorado), runs RLC Leasing and her personal brand, and is a mom to a one-year-old. She has ADHD: she jumps between tasks and loses the day to her phone, so she needs ONE clear first move and a short, honest order — not a long plan.
+
+How to prioritize:
+1. Hard deadlines and anything overdue or due within 2 days.
+2. Income-producing work (leads, clients, listings, closings, commissions, follow-ups) beats admin, setup and "nice to have".
+3. Things that unblock other people or other tasks.
+4. Quick wins under 10 minutes can go early only if they clear a real obstacle.
+Be realistic about today: she only has the open time shown in today's schedule. Put the rest in "this week" or "later". If a task looks unnecessary or duplicated, say so in "drop".
+
+Return ONLY JSON:
+{
+  "first": { "key": "<task key>", "why": "one sentence", "first_step": "the very first 2-minute action", "minutes": 15 },
+  "order": [ { "key": "<task key>", "why": "short reason", "minutes": 20, "priority": "high|medium|low", "when": "today|this week|later" } ],
+  "top3": ["<key>", "<key>", "<key>"],
+  "drop": [ { "key": "<task key>", "why": "short reason" } ],
+  "note": "one short, kind, practical sentence for today"
+}
+"order" must include every task key exactly once (including the first one), most important first. Use only keys from the input.`
+  return ask(system, JSON.stringify({ today, now, todays_remaining_schedule: schedule, tasks }, null, 2), 16000)
+}

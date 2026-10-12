@@ -5,6 +5,7 @@ import { CATEGORIES, PORTAL_URL } from '../ceo/constants.js'
 import { addDays, fmtDate, fmtTime, todayISO } from '../ceo/recurrence.js'
 import { Modal, Tick } from '../ceo/ui.jsx'
 import { useCalendarItems } from '../ceo/useCalendarItems.js'
+import TaskCoach from '../ceo/TaskCoach.jsx'
 
 const PRIO_ORDER = { high: 0, medium: 1, low: 2 }
 const PRIOS = ['high', 'medium', 'low']
@@ -47,6 +48,8 @@ export default function Inbox() {
       </form>
 
       <div className="c-stack">
+        <TaskCoach limit={8} />
+
         <Section title="Inbox" count={inbox.length} hint="Unsorted">
           {inbox.length === 0 && <div className="c-empty">Inbox zero. Nice.</div>}
           {inbox.map(t => <TaskRow key={t.id} task={t} focusCount={focusCount} />)}
