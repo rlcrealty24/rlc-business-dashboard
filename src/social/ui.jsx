@@ -73,6 +73,7 @@ export function SocialNav() {
       <Link className="c-link" to="/social">HQ</Link>
       <Link className="c-link" to="/social/planner">Planner</Link>
       <Link className="c-link" to="/social/ideas">Ideas &amp; Backlog</Link>
+      <Link className="c-link" to="/social/plan">30-day plan</Link>
     </div>
   )
 }

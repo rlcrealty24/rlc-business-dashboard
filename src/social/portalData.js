@@ -2,6 +2,7 @@
 // portal session as the CEO calendar; nothing is copied or written back.
 import { useEffect, useState } from 'react'
 import { portal, usePortalSession } from '../ceo/portal.js'
+import { todayISO } from '../ceo/recurrence.js'
 
 const CLOSED = /closed|complete|move-in|moved in|leased|funded|sold/i
 
@@ -43,7 +44,7 @@ export const DEAL_COLUMNS = 'id, title, address, property_address, building_name
 /** Raw portal deals + profiles → closed transactions with agent names, newest first */
 export function mapClosedDeals(deals, people) {
   const names = new Map((people || []).map(p => [p.id, p.preferred_name || p.full_name]))
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayISO()
   return (deals || []).map(d => {
     const date = [d.close_date, d.closing_date, d.move_in_date].filter(Boolean).map(x => String(x).slice(0, 10)).sort().pop() || null
     const kind = /rent|lease/i.test(`${d.deal_type} ${d.track} ${d.type} ${d.stage}`) || d.monthly_rent ? 'lease' : 'sale'

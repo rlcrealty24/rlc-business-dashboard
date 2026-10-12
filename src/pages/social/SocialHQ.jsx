@@ -159,7 +159,7 @@ export default function SocialHQ() {
           <div className="c-card">
             <div className="c-card-head"><div className="c-card-title">Coming next</div></div>
             <div className="c-card-body c-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
-              Phase 2: AI strategist (hooks, scripts, captions in each brand voice) and your suggested 30-day plan.<br />
+              Now live: AI strategist on every post (open a post → Develop with AI) and the <Link className="c-link" to="/social/plan">30-day plan</Link>.<br />
               Phase 3: agent submissions, asset library, Campaign Builder.<br />
               Phase 4: tracking links, CRM lead attribution, analytics.
             </div>
@@ -180,6 +180,7 @@ function Head() {
       </div>
       <div className="c-head-actions">
         <Link className="c-btn" to="/social/planner">Planner</Link>
+        <Link className="c-btn c-btn-ink" to="/social/plan">Plan my next 30 days</Link>
         <Link className="c-btn c-btn-sky" to="/social/ideas">Ideas &amp; Backlog</Link>
       </div>
     </div>

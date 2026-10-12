@@ -6,8 +6,9 @@ import { BRANDS, EFFORT_LABEL, FORMATS, OBJECTIVES, PLATFORMS, PRIORITIES, STAGE
 import { nextStep } from '../../social/schedule.js'
 import { BrandChip, DueChip, SocialNav, SocialSetupNeeded, StageChip } from '../../social/ui.jsx'
 import { usePortalAgents } from '../../social/portalData.js'
+import AiPanel from '../../social/AiPanel.jsx'
 import { Checklist, Progress, Tick, toast } from '../../ceo/ui.jsx'
-import { fmtDate } from '../../ceo/recurrence.js'
+import { fmtDate, todayISO } from '../../ceo/recurrence.js'
 
 const VERSION_STATUSES = ['draft', 'ready', 'scheduled', 'published']
 const METRICS = [
@@ -85,7 +86,7 @@ export default function PostWorkspace() {
       {ns && ns.due && item.stage !== 'idea' && (
         <div className="c-banner sky" style={{ marginBottom: 18 }}>
           <div>
-            <div className="c-label">Next action · {ns.due < new Date().toISOString().slice(0, 10) ? 'overdue' : fmtDate(ns.due)}</div>
+            <div className="c-label">Next action · {ns.due < todayISO() ? 'overdue' : fmtDate(ns.due)}</div>
             <div className="c-serif" style={{ fontSize: 20, margin: '4px 0' }}>{ns.label}</div>
             <div style={{ fontSize: 13, color: 'var(--mid)' }}>{ns.items.filter(x => !x.done).slice(0, 3).map(x => x.text).join(' · ')}</div>
           </div>
@@ -142,8 +143,10 @@ export default function PostWorkspace() {
             )}
           </div>
 
+          <AiPanel item={item} />
+
           <div className="c-card">
-            <div className="c-card-head"><div className="c-card-title">Creative</div><span className="c-muted" style={{ fontSize: 12 }}>AI drafts arrive in Phase 2</span></div>
+            <div className="c-card-head"><div className="c-card-title">Creative</div><span className="c-muted" style={{ fontSize: 12 }}>Your final copy</span></div>
             <div className="c-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Field label="Hook" value={item.hook} onSave={v => set({ hook: v })} rows={2} placeholder="First line / first 2 seconds" />
               <Field label="Script" value={item.script} onSave={v => set({ script: v })} rows={8} />
@@ -281,7 +284,7 @@ export default function PostWorkspace() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <strong style={{ fontSize: 13 }}>{PLATFORMS[p] || p}</strong>
                     <select className="c-select" style={{ width: 130, padding: '5px 8px', fontSize: 12 }} value={v.status || 'draft'}
-                      onChange={e => setV({ status: e.target.value, ...(e.target.value === 'published' && !v.published_at ? { published_at: new Date().toISOString().slice(0, 10) } : {}) })}>
+                      onChange={e => setV({ status: e.target.value, ...(e.target.value === 'published' && !v.published_at ? { published_at: todayISO() } : {}) })}>
                       {VERSION_STATUSES.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>

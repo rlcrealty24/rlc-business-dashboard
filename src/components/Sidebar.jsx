@@ -18,6 +18,7 @@ const CEO_NAV = [
 const SOCIAL_NAV = [
   { path: '/social',         label: 'Social HQ',        icon: ico(<><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></>) },
   { path: '/social/planner', label: 'Content Planner',  icon: ico(<><rect x="3" y="4" width="7" height="16"/><rect x="14" y="4" width="7" height="10"/></>) },
+  { path: '/social/plan',    label: '30-Day Plan',      icon: ico(<><path d="M12 3l2.5 5.5L20 9l-4 4 1 6-5-3-5 3 1-6-4-4 5.5-.5z"/></>) },
   { path: '/social/ideas',   label: 'Ideas & Backlog',  icon: ico(<><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/></>) },
 ]
 

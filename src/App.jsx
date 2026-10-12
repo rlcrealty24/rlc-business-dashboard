@@ -14,6 +14,7 @@ import SocialHQ from './pages/social/SocialHQ.jsx'
 import Planner from './pages/social/Planner.jsx'
 import IdeaBank from './pages/social/IdeaBank.jsx'
 import PostWorkspace from './pages/social/PostWorkspace.jsx'
+import PlanMonth from './pages/social/PlanMonth.jsx'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="social/planner" element={<Planner />} />
           <Route path="social/ideas" element={<IdeaBank />} />
           <Route path="social/post/:id" element={<PostWorkspace />} />
+          <Route path="social/plan" element={<PlanMonth />} />
           <Route path="dashboard" element={<Navigate to="/today" replace />} />
           <Route path="finance" element={<Finance />} />
           <Route path="real-estate" element={<RealEstate />} />
