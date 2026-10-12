@@ -231,12 +231,42 @@ export default function Today() {
   )
 }
 
+// Where this device is, by its time zone (no location permission needed)
+const PLACES = { 'America/Denver': 'Colorado', 'America/Boise': 'Mountain West', 'America/Phoenix': 'Arizona', 'America/New_York': 'Florida / East Coast', 'America/Detroit': 'East Coast', 'America/Chicago': 'Central US', 'America/Los_Angeles': 'West Coast' }
+const ZONES = [['America/Denver', 'Mountain'], ['America/New_York', 'Eastern']]
+
+function Clocks() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 15000); return () => clearInterval(t) }, [])
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const place = PLACES[here] || here.split('/').pop().replace(/_/g, ' ')
+  const dayOf = tz => now.toLocaleDateString('en-US', { timeZone: tz, weekday: 'short' })
+  return (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', margin: '10px 0 6px' }}>
+      <span className="c-chip" title={`Based on this device's time zone (${here})`}>📍 {place}</span>
+      <span className="c-chip">{now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+      {ZONES.map(([tz, label]) => {
+        const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).formatToParts(now)
+        const time = parts.filter(p => p.type !== 'timeZoneName').map(p => p.value).join('').trim()
+        const abbr = parts.find(p => p.type === 'timeZoneName')?.value
+        const otherDay = dayOf(tz) !== now.toLocaleDateString('en-US', { weekday: 'short' })
+        return (
+          <span key={tz} className={`c-chip${tz === here ? ' sky' : ''}`} title={`${label} time`}>
+            <strong style={{ fontWeight: 600 }}>{time}</strong>&nbsp;{abbr} · {label}{otherDay ? ` · ${dayOf(tz)}` : ''}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
 function Header({ onFocus, canFocus }) {
   return (
     <div className="c-head">
       <div>
         <div className="c-eyebrow">CEO · Today</div>
         <div className="c-title">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+        <Clocks />
         <div className="c-sub">Leadership in every deal. Loyalty in every move.</div>
       </div>
       {onFocus && (
