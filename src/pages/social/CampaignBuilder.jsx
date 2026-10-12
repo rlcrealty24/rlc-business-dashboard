@@ -12,6 +12,8 @@ import { priceLine, useLeasingListings } from '../../social/leasing.js'
 import { BrandChip, SocialNav, SocialSetupNeeded, StageChip } from '../../social/ui.jsx'
 import { AssetModal } from './Library.jsx'
 import { toast } from '../../ceo/ui.jsx'
+import { useVerifiedLeads } from '../../social/attribution.js'
+import { postCode } from '../../social/tracking.js'
 import { addDays, fmtDate, todayISO } from '../../ceo/recurrence.js'
 
 export default function CampaignBuilder() {
@@ -368,13 +370,15 @@ function Results({ c, posts, cfg, setCfg }) {
   const [busy, setBusy] = useState(false)
   const r = campaignResults(posts)
   const review = cfg.review
+  const verified = useVerifiedLeads()
+  const verifiedCount = posts.reduce((s, p) => s + (verified.byCode.get(postCode(p)) || []).length, 0)
   async function runReview() {
     setBusy(true)
     try {
       const out = await reviewCampaign({
         campaign: c.name, goal: c.goal, start: c.start_date, days: c.duration_days, today: todayISO(),
         posts: posts.map(p => ({ title: p.title, date: p.publish_date, stage: p.stage, hook: p.hook, metrics: p.metrics })),
-        totals: r.totals, posted: r.posted, with_data: r.withData,
+        totals: r.totals, posted: r.posted, with_data: r.withData, verified_leads_from_tracking_links: verifiedCount,
       })
       setCfg({ review: { ...out, at: new Date().toISOString() } })
     } catch (e) { toast('Review failed', e.message) }
@@ -392,9 +396,10 @@ function Results({ c, posts, cfg, setCfg }) {
           <Stat value={`${r.posted}/${r.total}`} label="Posted" />
           <Stat value={T.views} label="Views" />
           <Stat value={T.saves + T.shares} label="Saves + shares" />
-          <Stat value={T.inquiries + T.rental_leads} label="Inquiries + rental leads" />
+          <Stat value={verified.connected ? verifiedCount : '—'} label="Verified leads · tracking links" />
+          <Stat value={T.inquiries + T.rental_leads} label="Inquiries + rental leads (logged)" />
         </div>
-        <div className="c-muted" style={{ fontSize: 12, marginTop: 10 }}>Numbers come from each post&apos;s Results section ({r.withData} with data). Tracking links arrive in Phase 4.</div>
+        <div className="c-muted" style={{ fontSize: 12, marginTop: 10 }}>Logged numbers come from each post&apos;s Results section ({r.withData} with data); verified leads come from your CRM via each post&apos;s tracking link.</div>
         {review && (
           <div className="c-banner sky" style={{ display: 'block', marginTop: 14 }}>
             <div className="c-label" style={{ marginBottom: 6 }}>Recommendation · {review.verdict?.toUpperCase()} · {new Date(review.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>

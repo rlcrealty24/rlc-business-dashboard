@@ -18,6 +18,7 @@ import PlanMonth from './pages/social/PlanMonth.jsx'
 import Library from './pages/social/Library.jsx'
 import Campaigns from './pages/social/Campaigns.jsx'
 import CampaignBuilder from './pages/social/CampaignBuilder.jsx'
+import Insights from './pages/social/Insights.jsx'
 
 export default function App() {
   return (
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="social/post/:id" element={<PostWorkspace />} />
           <Route path="social/plan" element={<PlanMonth />} />
           <Route path="social/library" element={<Library />} />
+          <Route path="social/insights" element={<Insights />} />
           <Route path="social/campaigns" element={<Campaigns />} />
           <Route path="social/campaigns/:id" element={<CampaignBuilder />} />
           <Route path="dashboard" element={<Navigate to="/today" replace />} />

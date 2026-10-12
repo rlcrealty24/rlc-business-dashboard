@@ -7,6 +7,9 @@ import { nextStep } from '../../social/schedule.js'
 import { BrandChip, DueChip, SocialNav, SocialSetupNeeded, StageChip } from '../../social/ui.jsx'
 import { usePortalAgents } from '../../social/portalData.js'
 import AiPanel from '../../social/AiPanel.jsx'
+import { DEFAULT_DESTINATIONS, postCode, trackingLink } from '../../social/tracking.js'
+import { useVerifiedLeads } from '../../social/attribution.js'
+import { useLocalStorage } from '../../hooks/useLocalStorage.js'
 import { Checklist, Progress, Tick, toast } from '../../ceo/ui.jsx'
 import { fmtDate, todayISO } from '../../ceo/recurrence.js'
 
@@ -45,6 +48,8 @@ export default function PostWorkspace() {
   const navigate = useNavigate()
   const { items, campaigns, updateItem, toggleStep, setStepDate, duplicate, deleteItem, setupNeeded, loading } = useSocial()
   const { agents } = usePortalAgents()
+  const [settings] = useLocalStorage('social_settings', {})
+  const verified = useVerifiedLeads()
   const item = items.find(i => i.id === id)
   const [openSteps, setOpenSteps] = useState({})
 
@@ -279,6 +284,8 @@ export default function PostWorkspace() {
             {(item.platforms || []).map(p => {
               const v = versions[p] || {}
               const setV = patch => set({ versions: { ...versions, [p]: { ...v, ...patch } } })
+              const dest = settings?.destinations?.[item.brand] || DEFAULT_DESTINATIONS[item.brand]
+              const link = trackingLink(dest, { platform: p, item, campaign: campaigns.find(x => x.id === item.campaign_id) })
               return (
                 <div key={p} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -290,8 +297,10 @@ export default function PostWorkspace() {
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button className="c-btn c-btn-sm" onClick={() => { navigator.clipboard.writeText([v.caption || item.caption, item.hashtags].filter(Boolean).join('\n\n')); toast('Caption copied', PLATFORMS[p]) }}>Copy caption</button>
+                    <button className="c-btn c-btn-sm" onClick={() => { navigator.clipboard.writeText(link); toast('Tracking link copied', `${PLATFORMS[p]} · code ${postCode(item)}`) }}>Copy link</button>
                     {v.url && <a className="c-btn c-btn-sm c-btn-ghost" href={v.url} target="_blank" rel="noreferrer">Open post ↗</a>}
                   </div>
+                  <div className="c-muted" style={{ fontSize: 11, wordBreak: 'break-all' }} title="Use in Story link stickers, Facebook posts and your bio link while this post is live">{link}</div>
                   <Field value={v.caption} onSave={val => setV({ caption: val })} rows={2} placeholder={`${PLATFORMS[p]} caption (blank = main caption)`} />
                   <Field value={v.url} onSave={val => setV({ url: val })} placeholder="Live link after publishing" />
                 </div>
@@ -308,9 +317,10 @@ export default function PostWorkspace() {
             <div className="c-card-head"><div className="c-card-title">Results</div>
               <select className="c-select" style={{ width: 150, padding: '4px 8px', fontSize: 12 }} value={metrics.source || 'manual'}
                 onChange={e => set({ metrics: { ...metrics, source: e.target.value } })}>
-                <option value="manual">Entered by hand</option><option value="estimated">Estimated</option><option value="verified">Verified (tracked link / form)</option>
+                <option value="manual">Numbers entered by hand</option><option value="estimated">Numbers estimated</option><option value="verified">Numbers from platform insights</option>
               </select>
             </div>
+            <VerifiedLeads code={postCode(item)} verified={verified} />
             <div className="c-card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 10 }}>
               {METRICS.map(([k, l]) => (
                 <div key={k} className="c-field">
@@ -410,6 +420,23 @@ function Assets({ item, set }) {
         <input className="c-input" style={{ flex: '2 1 180px' }} placeholder="Shared iCloud / Drive link" value={url} onChange={e => setUrl(e.target.value)} />
         <button className="c-btn c-btn-sm">Add</button>
       </form>
+    </div>
+  )
+}
+
+function VerifiedLeads({ code, verified }) {
+  const mine = verified.byCode.get(code) || []
+  return (
+    <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: mine.length ? 'var(--sky-soft)' : undefined }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+        <span className="s-field-label" style={{ margin: 0 }}>Verified leads · from tracking links</span>
+        <span className="c-serif" style={{ fontSize: 22 }}>{verified.connected ? mine.length : '—'}</span>
+      </div>
+      {!verified.connected && <div className="c-muted" style={{ fontSize: 12 }}>Connect the RLC Portal (Today page) to see leads that came in through this post&apos;s links.</div>}
+      {mine.slice(0, 5).map((l, i) => (
+        <div key={i} className="c-muted" style={{ fontSize: 12 }}>{new Date(l.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · {l.platform} · {l.from}</div>
+      ))}
+      {verified.connected && !mine.length && <div className="c-muted" style={{ fontSize: 12 }}>None yet. Code <strong>{code}</strong> — leads that arrive through this post&apos;s links show up here automatically.</div>}
     </div>
   )
 }

@@ -174,3 +174,12 @@ Judge by business results first (inquiries and rental leads), then saves/shares,
 Return ONLY JSON: { "verdict": "continue|adjust|pause", "summary": "2–3 sentences", "changes": ["specific changes to make — formats, hooks, posting days, which apartments/markets to lean into"], "best": "which post worked best and why (or empty)", "worst": "which post worked worst and why (or empty)" }`
   return ask(system, JSON.stringify(summary, null, 2), 8000)
 }
+
+/** Month-end read: what generated business, what to change */
+export async function monthlyInsights(data) {
+  const system = `You analyze one month of Royanna Carbajal's social media across three accounts (personal, RLC Realty, RLC Leasing).
+She cares about business, not vanity metrics: verified leads (from tracking links) count most, then leads she logged, then saves/shares; views matter least.
+Be specific and honest — name posts and formats. If there is too little data to conclude something, say so plainly instead of guessing.
+Return ONLY JSON: { "summary": "3–4 sentences: what generated business this month and why", "keep": ["what to keep doing"], "change": ["what to stop or change"], "next_month": ["2–4 concrete content moves for next month"] }`
+  return ask(system, JSON.stringify(data, null, 2), 8000)
+}

@@ -6,6 +6,7 @@ import { BRANDS, FORMATS } from '../../social/constants.js'
 import { marketingSummary } from '../../social/insights.js'
 import { BrandChip, DueChip, SocialNav, SocialSetupNeeded, platformsLabel } from '../../social/ui.jsx'
 import { toast } from '../../ceo/ui.jsx'
+import { useVerifiedLeads } from '../../social/attribution.js'
 import { addDays, daysBetween, fmtDate, todayISO } from '../../ceo/recurrence.js'
 
 export default function SocialHQ() {
@@ -15,6 +16,8 @@ export default function SocialHQ() {
   const [brand, setBrand] = useState('personal')
   const today = todayISO()
   const m = marketingSummary(items, campaigns, today)
+  const verified = useVerifiedLeads()
+  const verifiedThisMonth = verified.leads.filter(l => String(l.at || '').startsWith(today.slice(0, 7))).length
 
   if (setupNeeded) return <div className="c-page"><Head /><SocialSetupNeeded /></div>
 
@@ -60,9 +63,9 @@ export default function SocialHQ() {
           )
         })}
         <div className="c-stat">
-          <div className="c-stat-val">{m.leadsThisMonth}</div>
+          <div className="c-stat-val">{verified.connected ? verifiedThisMonth : '—'}<span className="c-muted" style={{ fontSize: 16 }}> + {m.leadsThisMonth}</span></div>
           <div className="c-stat-lbl">Leads from social · this month</div>
-          <div className="c-muted" style={{ fontSize: 11, marginTop: 6 }}>Logged on each post (tracking links in Phase 4)</div>
+          <div className="c-muted" style={{ fontSize: 11, marginTop: 6 }}>Verified (tracking links) + logged by hand · <Link className="c-link" to="/social/insights">Insights →</Link></div>
         </div>
       </div>
 
@@ -161,7 +164,7 @@ export default function SocialHQ() {
             <div className="c-card-body c-muted" style={{ fontSize: 12, lineHeight: 1.6 }}>
               Now live: AI strategist on every post (open a post → Develop with AI) and the <Link className="c-link" to="/social/plan">30-day plan</Link>.<br />
               Phase 3: agent submissions, asset library, Campaign Builder.<br />
-              Phase 4: tracking links, CRM lead attribution, analytics.
+              Now live: tracking links on every post, verified leads from your CRM, and monthly <Link className="c-link" to="/social/insights">Insights</Link>.
             </div>
           </div>
         </div>
