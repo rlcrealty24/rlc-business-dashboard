@@ -1,4 +1,4 @@
-// Small Today-page cards pulled from the Life & Money pages (Finance, Tasks & Projects).
+// Small Today-page cards pulled from the Life & Money pages (Finance).
 // They read the same stored data those pages use — nothing is copied.
 
 import { Link } from 'react-router-dom'
@@ -100,58 +100,3 @@ function Figure({ label, value, color }) {
 }
 
 const PRIO_RANK = { high: 0, High: 0, medium: 1, Medium: 1, low: 2, Low: 2 }
-
-/**
- * What needs attention: overdue or due within 3 days, plus anything marked High —
- * from both the Inbox and the Tasks & Projects board. Today's Top 3 are excluded
- * (they already sit at the top of the page).
- */
-export function ImportantTasks() {
-  const { tasks, updateTask } = useCeo()
-  const [projectTasks, setProjectTasks] = useLocalStorage('portal_tasks', [])
-  const today = todayISO()
-  const soon = addDays(today, 3)
-
-  const rows = [
-    ...tasks
-      .filter(t => t.status !== 'done' && t.focus_date !== focusDay())
-      .filter(t => t.priority === 'high' || (t.due_date && t.due_date <= soon))
-      .map(t => ({ key: `c${t.id}`, title: t.title, due: t.due_date, prio: t.priority, from: 'Inbox', href: '/inbox',
-        complete: () => updateTask(t, { status: 'done', completed_at: new Date().toISOString() }) })),
-    ...list(projectTasks)
-      .filter(t => t.status !== 'Done')
-      .filter(t => t.priority === 'High' || (t.dueDate && t.dueDate <= soon))
-      .map(t => ({ key: `p${t.id}`, title: t.title || t.text, due: t.dueDate, prio: t.priority, from: 'Projects', href: '/portal-project',
-        complete: () => setProjectTasks(prev => list(prev).map(x => (x.id === t.id ? { ...x, status: 'Done', completedAt: today } : x))) })),
-  ].sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (PRIO_RANK[a.prio] ?? 3) - (PRIO_RANK[b.prio] ?? 3))
-
-  return (
-    <div className="c-card">
-      <div className="c-card-head">
-        <div className="c-card-title">Important tasks</div>
-        <span className={`c-chip${rows.length ? ' sky' : ''}`}>{rows.length}</span>
-      </div>
-      {rows.length === 0 && <div className="c-empty">Nothing urgent or high-priority.</div>}
-      {rows.slice(0, 6).map(r => (
-        <div key={r.key} className="c-task">
-          <button className="c-check" style={{ padding: 0, border: 0 }} onClick={r.complete} aria-label="Complete">
-            <span className="c-box" />
-          </button>
-          <div style={{ minWidth: 0 }}>
-            <div className="c-task-title">{r.title}</div>
-            <div className="c-task-meta">
-              {r.due && <span className={`c-chip${r.due < today ? ' red' : r.due === today ? ' warn' : ''}`}>
-                {r.due < today ? 'Overdue' : r.due === today ? 'Due today' : `Due ${fmtDate(r.due, { month: 'short', day: 'numeric' })}`}
-              </span>}
-              {/high/i.test(r.prio || '') && <span className="c-chip c-prio-high">High</span>}
-              <Link to={r.href} className="c-chip" style={{ textDecoration: 'none' }}>{r.from}</Link>
-            </div>
-          </div>
-          <span />
-        </div>
-      ))}
-      {rows.length > 6 && <div className="c-muted" style={{ fontSize: 12, padding: '10px 20px' }}>+{rows.length - 6} more in the Inbox and Tasks &amp; Projects</div>}
-    </div>
-  )
-}
-

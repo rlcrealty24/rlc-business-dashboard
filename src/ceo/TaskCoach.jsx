@@ -1,4 +1,4 @@
-// "What to do first" — your open tasks (Inbox + Next + Tasks & Projects board) in a
+// "What to do first" — your open tasks (Inbox + Next) in a
 // sensible order, with an AI pass that explains the order and fills your Top 3.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -18,18 +18,13 @@ export const focusDay = () => (new Date().getHours() >= 20 ? addDays(todayISO(),
 /** Every open task in one shape */
 export function useOpenTasks() {
   const { tasks, updateTask } = useCeo()
-  const [projectTasks, setProjectTasks] = useLocalStorage('portal_tasks', [])
   const list = useMemo(() => [
     ...tasks.filter(t => t.status !== 'done').map(t => ({
       key: `c:${t.id}`, title: t.title, notes: t.notes || '', priority: t.priority || null, due: t.due_date || null,
       created: (t.created_at || '').slice(0, 10), from: t.status === 'inbox' ? 'Inbox' : 'Next', focus: t.focus_date === focusDay(), raw: t,
     })),
-    ...(Array.isArray(projectTasks) ? projectTasks : []).filter(t => t.status !== 'Done').map(t => ({
-      key: `p:${t.id}`, title: t.title || t.text, notes: t.description || t.notes || '', priority: (t.priority || '').toLowerCase() || null,
-      due: t.dueDate || null, created: t.createdAt || '', from: 'Projects', focus: false, raw: t,
-    })),
-  ], [tasks, projectTasks])
-  return { list, updateTask, setProjectTasks }
+  ], [tasks])
+  return { list, updateTask }
 }
 
 /** Instant order without AI: overdue/due soon → high → money work → medium → oldest */
@@ -48,7 +43,7 @@ export function ruleOrder(list, today = todayISO()) {
 }
 
 export default function TaskCoach({ limit = 6 }) {
-  const { list, updateTask, setProjectTasks } = useOpenTasks()
+  const { list, updateTask } = useOpenTasks()
   const today = todayISO()
   const { byDate } = useCalendarItems(today, today, { portal: false })
   const [saved, setSaved] = useLocalStorage('task_coach', null)
@@ -110,14 +105,7 @@ export default function TaskCoach({ limit = 6 }) {
       if (t.raw.status === 'inbox' && p) patch.status = 'next'
       if (Object.keys(patch).length) await updateTask(t.raw, patch)
     }
-    setProjectTasks(prev => (Array.isArray(prev) ? prev : []).map(x => {
-      const p = pr.get(`p:${x.id}`)
-      return p ? { ...x, priority: p[0].toUpperCase() + p.slice(1) } : x
-    }))
-    const onBoard = top.filter(k => k.startsWith('p:')).length
-    toast('Priorities applied', onBoard
-      ? `Top 3 set. ${onBoard} of your top picks ${onBoard === 1 ? 'lives' : 'live'} on Tasks & Projects — marked ★ here.`
-      : 'Your Top 3 is set — start with the first one.')
+    toast('Priorities applied', 'Your Top 3 is set — start with the first one.')
   }
 
   runRef.current = { run, busy }
@@ -181,7 +169,7 @@ export default function TaskCoach({ limit = 6 }) {
         </div>
       )}
       <div className="c-muted" style={{ fontSize: 11, padding: '8px 20px 12px' }}>
-        Includes your <Link className="c-link" to="/inbox">Inbox</Link> and <Link className="c-link" to="/portal-project">Tasks &amp; Projects</Link>.
+        Everything in your <Link className="c-link" to="/inbox">Inbox</Link> — your one task list.
       </div>
     </div>
   )
