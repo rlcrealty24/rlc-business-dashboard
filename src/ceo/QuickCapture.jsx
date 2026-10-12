@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { isList } from './brainDump.js'
 import { useCeo } from './CeoStore.jsx'
 import { toast } from './ui.jsx'
 import { useSocial } from '../social/SocialStore.jsx'
@@ -10,6 +12,7 @@ export function openCapture() { window.dispatchEvent(new Event('ceo-capture')) }
 export default function QuickCapture() {
   const { capture, setupNeeded } = useCeo()
   const social = useSocial()
+  const navigate = useNavigate()
   const [mode, setMode] = useState('task')        // task | idea
   const [brand, setBrand] = useState('personal')
   const [open, setOpen] = useState(false)
@@ -33,6 +36,9 @@ export default function QuickCapture() {
     if (mode === 'idea' && !social.setupNeeded) {
       await social.capture(text, brand)
       toast('Idea saved', `${BRANDS[brand].label} · Social HQ idea bank`)
+    } else if (isList(text)) {
+      // A pasted list goes to the Inbox to be split into tasks
+      navigate('/inbox', { state: { dump: text } })
     } else {
       await capture(text)
       toast('Captured', 'Saved to your Inbox — back to what you were doing.')
@@ -61,8 +67,10 @@ export default function QuickCapture() {
               ))}
             </div>
             <div className="c-capture">
-              <input ref={inputRef} autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="What's on your mind? Press Enter." />
-              <button className="c-btn c-btn-sky" style={{ border: 0 }} type="submit">Save</button>
+              <textarea ref={inputRef} autoFocus value={text} rows={Math.min(8, Math.max(1, text.split('\n').length))} onChange={e => setText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !(mode === 'task' && isList(text))) { e.preventDefault(); submit(e) } }}
+                placeholder="What's on your mind? Press Enter — or paste a list." />
+              <button className="c-btn c-btn-sky" style={{ border: 0 }} type="submit">{mode === 'task' && isList(text) ? 'Make tasks' : 'Save'}</button>
             </div>
             <div style={{ color: 'rgba(255,255,255,.6)', fontSize: 12, marginTop: 10 }}>
               {mode === 'idea' ? 'Saved as an idea — nothing gets scheduled until you plan it.' : <>Don&apos;t sort it now. You&apos;ll triage the Inbox during Tomorrow Setup.</>}

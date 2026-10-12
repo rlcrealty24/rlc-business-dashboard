@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import '../ceo/ceo.css'
 import { useCeo } from '../ceo/CeoStore.jsx'
 import { CATEGORIES, PORTAL_URL } from '../ceo/constants.js'
@@ -6,6 +7,8 @@ import { addDays, fmtDate, fmtTime, todayISO } from '../ceo/recurrence.js'
 import { Modal, Tick } from '../ceo/ui.jsx'
 import { useCalendarItems } from '../ceo/useCalendarItems.js'
 import TaskCoach from '../ceo/TaskCoach.jsx'
+import BrainDumpReview from '../ceo/BrainDump.jsx'
+import { isList, splitLines } from '../ceo/brainDump.js'
 
 const PRIO_ORDER = { high: 0, medium: 1, low: 2 }
 const PRIOS = ['high', 'medium', 'low']
@@ -15,6 +18,20 @@ export default function Inbox() {
   const [text, setText] = useState('')
   const [showDone, setShowDone] = useState(false)
   const [triage, setTriage] = useState(false)
+  const [dump, setDump] = useState(null)   // pasted list being turned into tasks
+  const location = useLocation()
+  const navigate = useNavigate()
+  // A list pasted into ⌘K capture lands here
+  useEffect(() => {
+    if (location.state?.dump) { setDump(location.state.dump); navigate(location.pathname, { replace: true, state: null }) }
+  }, [location.state]) // eslint-disable-line react-hooks/exhaustive-deps
+  const listCount = isList(text) ? splitLines(text).length : 0
+  function submit() {
+    if (!text.trim()) return
+    if (listCount) setDump(text)
+    else capture(text)
+    setText('')
+  }
   const today = todayISO()
 
   const inbox = tasks.filter(t => t.status === 'inbox')
@@ -42,10 +59,15 @@ export default function Inbox() {
         </div>
       </div>
 
-      <form className="c-capture" style={{ marginBottom: 24 }} onSubmit={e => { e.preventDefault(); if (text.trim()) { capture(text); setText('') } }}>
-        <input autoFocus value={text} onChange={e => setText(e.target.value)} placeholder="Type anything and press Enter…" />
-        <button className="c-btn c-btn-sky" style={{ border: 0 }}>Capture</button>
+      <form className="c-capture" style={{ marginBottom: listCount ? 6 : 24 }} onSubmit={e => { e.preventDefault(); submit() }}>
+        <textarea autoFocus value={text} rows={Math.min(10, Math.max(1, text.split('\n').length))} onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !listCount) { e.preventDefault(); submit() } }}
+          placeholder="Type a task and press Enter — or paste a whole list of things on your mind" />
+        <button className="c-btn c-btn-sky" style={{ border: 0, alignSelf: 'stretch' }}>{listCount ? `Make ${listCount} tasks` : 'Capture'}</button>
       </form>
+      {listCount > 0 && <div className="c-muted" style={{ fontSize: 12, marginBottom: 24 }}>Looks like a list — it'll be split into separate tasks with priorities for you to review. Shift+Enter adds a line.</div>}
+
+      {dump && <div style={{ marginBottom: 24 }}><BrainDumpReview text={dump} onDone={() => setDump(null)} /></div>}
 
       <div className="c-stack">
         <TaskCoach limit={8} />

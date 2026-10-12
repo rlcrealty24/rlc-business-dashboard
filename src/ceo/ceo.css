@@ -157,6 +157,7 @@ button.c-chip { cursor: pointer; }
 
 /* Inbox */
 .c-capture { display: flex; border: 1px solid var(--ink); background: #fff; }
+.c-capture textarea { flex: 1; border: 0; padding: 16px 18px; font-size: 16px; font-family: var(--sans); outline: none; background: transparent; resize: none; line-height: 1.45; }
 .c-capture input { flex: 1; border: 0; padding: 16px 18px; font-size: 16px; font-family: var(--sans); outline: none; background: transparent; }
 .c-task { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: start; padding: 12px 20px; border-bottom: 1px solid var(--border); }
 .c-task:last-child { border-bottom: 0; }

@@ -1,6 +1,6 @@
 // "What to do first" — your open tasks (Inbox + Next + Tasks & Projects board) in a
 // sensible order, with an AI pass that explains the order and fills your Top 3.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { useCeo } from './CeoStore.jsx'
@@ -69,6 +69,14 @@ export default function TaskCoach({ limit = 6 }) {
     return out
   }, [result, list]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Brain-dump capture asks for a fresh order once its tasks are saved
+  const runRef = useRef(null)
+  useEffect(() => {
+    const go = () => { if (!runRef.current?.busy) runRef.current?.run() }
+    window.addEventListener('ceo-coach-run', go)
+    return () => window.removeEventListener('ceo-coach-run', go)
+  }, [])
+
   async function run() {
     setBusy(true); setSecs(0)
     const n = nowMin()
@@ -109,6 +117,7 @@ export default function TaskCoach({ limit = 6 }) {
       : 'Your Top 3 is set — start with the first one.')
   }
 
+  runRef.current = { run, busy }
   const first = result && byKey.get(result.first?.key)
   const shown = showAll ? ordered : ordered.slice(0, limit)
 
