@@ -1,7 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { today, uid, formatDate } from '../utils/formatters.js'
-import { PLAN_DAYS, MACRO_TARGETS, MEALS_LIST, TIPS, BODY_STATS, searchFoodDB } from '../data/fitnessData.js'
+import { MEALS_LIST, TIPS, BODY_STATS, searchFoodDB } from '../data/fitnessData.js'
+import { useFitnessPlan, planDay as planDayOf, logDayKey, WEEK_ORDER } from '../fitness/plan.js'
+import { DaysEditor } from '../fitness/PlanEditor.jsx'
+import CoachTab from '../fitness/CoachTab.jsx'
+import MealPlanTab from '../fitness/MealPlanTab.jsx'
+import HistoryTab from '../fitness/HistoryTab.jsx'
 
 // ─── USDA FoodData Central Search ─────────────────────────────────────────────
 // Free API — get your own key at https://api.nal.usda.gov/api-key-signup.html
@@ -399,9 +404,11 @@ function WeighInCard({ logs, weekly, setLogs, setWeekly, entries, goals, setGoal
   )
 }
 
-function WorkoutPlanTab() {
+function WorkoutPlanTab({ goToTab }) {
+  const { plan, replacePlan } = useFitnessPlan()
   const todayDow = new Date().getDay()
   const [open, setOpen] = useState(new Set([todayDow]))
+  const [edit, setEdit] = useState(null)   // working copy while editing
 
   function toggle(d) {
     setOpen(prev => { const n = new Set(prev); n.has(d) ? n.delete(d) : n.add(d); return n })
@@ -409,15 +416,47 @@ function WorkoutPlanTab() {
 
   return (
     <div>
-      <div className="flex-between mb-16">
+      <div className="flex-between mb-16" style={{ gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2>5-Day Training Split</h2>
-          <p className="text-sm text-muted mt-4">Weeks 1–2: form &amp; connection · Weeks 3–4: add volume · Weeks 5–8: increase load progressively</p>
+          <h2>{plan.name} <span className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 'normal' }}>v{plan.version || 1}</span></h2>
+          <p className="text-sm text-muted mt-4">{plan.progression}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {!edit && <button className="btn btn-sm" onClick={() => setEdit(plan)}>✏️ Edit plan</button>}
+          {!edit && <button className="btn btn-primary btn-sm" onClick={() => goToTab('coach')}>🤖 Update with AI Coach</button>}
         </div>
       </div>
 
-      {[1, 2, 3, 4, 5, 6, 0].map(dayNum => {
-        const d       = PLAN_DAYS[dayNum]
+      {edit && (
+        <div className="card mb-16" style={{ borderTop: '3px solid var(--pink)' }}>
+          <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} style={{ flex: 1, minWidth: 200 }} aria-label="Plan name" />
+              <span className="text-xs text-muted">Swap exercises, move days, change sets — then save.</span>
+            </div>
+            <DaysEditor plan={edit} onChange={setEdit} />
+            {[['progression', 'Progression'], ['cardio', 'Cardio & steps'], ['recovery', 'Recovery']].map(([k, l]) => (
+              <div key={k} className="form-group" style={{ margin: 0 }}><label>{l}</label>
+                <textarea rows={2} value={edit[k] || ''} onChange={e => setEdit({ ...edit, [k]: e.target.value })} style={{ width: '100%' }} /></div>
+            ))}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setEdit(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={() => { replacePlan({ ...edit, source: 'edited', changes: ['Edited by hand'] }, { label: 'Edited by hand' }); setEdit(null) }}>Save as new version</button>
+            </div>
+            <div className="text-xs text-muted">Your previous version is kept in History so you can compare or go back.</div>
+          </div>
+        </div>
+      )}
+
+      {(plan.cardio || plan.recovery) && !edit && (
+        <div className="card mb-16"><div className="card-body text-sm" style={{ lineHeight: 1.6 }}>
+          {plan.cardio && <div><strong>Cardio: </strong>{plan.cardio}</div>}
+          {plan.recovery && <div><strong>Recovery: </strong>{plan.recovery}</div>}
+        </div></div>
+      )}
+
+      {!edit && WEEK_ORDER.map(dayNum => {
+        const d       = planDayOf(plan, dayNum)
         const isOpen  = open.has(dayNum)
         const isToday = todayDow === dayNum
         return (
@@ -964,7 +1003,10 @@ function DailyLogTab({ logs, setLogs }) {
   const dateKey    = selectedDate
   const log        = logs[dateKey] || emptyLog()
   const activeDayIdx = log.workoutDayIdx ?? new Date(selectedDate + 'T00:00:00').getDay()
-  const planDay    = PLAN_DAYS[activeDayIdx]
+  const { plan } = useFitnessPlan()
+  const MACRO_TARGETS = plan.targets
+  const planDay    = planDayOf(plan, activeDayIdx)
+  const dayKey     = logDayKey(plan, activeDayIdx)
   const [addingTo,   setAddingTo]   = useState(null)
   const [showAddEx,  setShowAddEx]  = useState(false)
   const exNameRef = useRef(null)
@@ -1000,7 +1042,7 @@ function DailyLogTab({ logs, setLogs }) {
   const burned    = parseFloat(log.totalBurned) || 0
   const netCal    = totals.cal - burned
   const remaining = MACRO_TARGETS.cal - netCal
-  const currentWorkouts = (log.workoutsPerDay || {})[activeDayIdx] || {}
+  const currentWorkouts = (log.workoutsPerDay || {})[dayKey] || {}
   const completedCount  = Object.values(currentWorkouts).filter(Boolean).length
                         + (log.customExercises || []).filter(e => e.done).length
   const totalExCount    = planDay.exercises.length + (log.customExercises || []).length
@@ -1051,9 +1093,9 @@ function DailyLogTab({ logs, setLogs }) {
   }
 
   function toggleEx(i) {
-    const cur = (log.workoutsPerDay || {})[activeDayIdx] || {}
+    const cur = (log.workoutsPerDay || {})[dayKey] || {}
     updateLog({
-      workoutsPerDay: { ...(log.workoutsPerDay || {}), [activeDayIdx]: { ...cur, [i]: !cur[i] } }
+      workoutsPerDay: { ...(log.workoutsPerDay || {}), [dayKey]: { ...cur, [i]: !cur[i] } }
     })
   }
 
@@ -1251,7 +1293,7 @@ function DailyLogTab({ logs, setLogs }) {
               {/* ── Day picker ── */}
               <div style={{ display: 'flex', gap: 4, marginBottom: 10, flexWrap: 'wrap' }}>
                 {[0,1,2,3,4,5,6].map(i => {
-                  const d = PLAN_DAYS[i]
+                  const d = planDayOf(plan, i)
                   return (
                     <button key={i} onClick={() => updateLog({ workoutDayIdx: i })}
                       style={{
@@ -1575,12 +1617,16 @@ export default function Fitness() {
   const [logs,   setLogs]   = useLocalStorage('fitness_logs',   {})
   const [weekly, setWeekly] = useLocalStorage('fitness_weekly', [])
   const [tab,    setTab]    = useState('daily')
+  const { plan } = useFitnessPlan()
 
   const TABS = [
     { id: 'overview', label: '🎯 Overview'      },
+    { id: 'coach',    label: '🤖 AI Coach'      },
     { id: 'plan',     label: '🏋️ Workout Plan'  },
+    { id: 'meals',    label: '🥗 Meal Plan'      },
     { id: 'daily',    label: '📅 Daily Log'      },
     { id: 'weekly',   label: '📊 Weekly Stats'   },
+    { id: 'history',  label: '🗂️ Plan History'   },
     { id: 'tips',     label: '💡 Tips'            },
   ]
 
@@ -1588,13 +1634,16 @@ export default function Fitness() {
     <div>
       <div className="page-header">
         <h1>Health &amp; Fitness 🌸</h1>
-        <p>Postpartum transformation — Strong, Toned &amp; Confident · 6–8 week plan</p>
+        <p>{plan.name} — {plan.goal}</p>
       </div>
       <div className="tabs">
         {TABS.map(t => <button key={t.id} className={`tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>{t.label}</button>)}
       </div>
       {tab === 'overview' && <Overview logs={logs} weekly={weekly} setLogs={setLogs} setWeekly={setWeekly} />}
-      {tab === 'plan'     && <WorkoutPlanTab />}
+      {tab === 'coach'    && <CoachTab logs={logs} weekly={weekly} setWeekly={setWeekly} goToTab={setTab} />}
+      {tab === 'plan'     && <WorkoutPlanTab goToTab={setTab} />}
+      {tab === 'meals'    && <MealPlanTab goToTab={setTab} />}
+      {tab === 'history'  && <HistoryTab logs={logs} weekly={weekly} />}
       {tab === 'daily'    && <DailyLogTab logs={logs} setLogs={setLogs} />}
       {tab === 'weekly'   && <WeeklyStatsTab weekly={weekly} setWeekly={setWeekly} />}
       {tab === 'tips'     && <TipsTab />}
