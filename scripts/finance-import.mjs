@@ -126,10 +126,33 @@ if (pdfs.length) say(`\nPDF statements found: ${pdfs.length} (used for month-end
 // Accounts without a running balance (NFCU): work month-end balances back from the balance you gave
 let anchors = {}
 try { anchors = (await api('GET', 'fin_meta', null, { query: '?key=eq.balances&select=value' }))?.[0]?.value || {} } catch {}
+const adjustments = []
 for (const a of ACCOUNTS.filter(a => !a.excluded && anchors[a.id] && !statements.some(s => s.account_id === a.id))) {
   const t = txns.filter(x => x.account_id === a.id)
   if (!t.length) continue
   const anchor = anchors[a.id]
+  // Self-healing balance adjustment: if working back from your balance dips below $0, something left the account
+  // that isn't in the files yet (usually after the last CSV date). Plug the gap just before the balance date so
+  // old months stay clean; it's recalculated (and disappears) on every import once the real transaction arrives.
+  {
+    const ms0 = [...new Set(t.map(x => x.date.slice(0, 7)))].sort()
+    let low = 0
+    for (const m of ms0) {
+      const end = t.filter(x => x.date.startsWith(m)).map(x => x.date).sort().at(-1)
+      const close = anchor.amount - t.filter(x => x.date > end && x.date <= anchor.date).reduce((s, x) => s + x.amount, 0)
+      const open = close - t.filter(x => x.date.startsWith(m)).reduce((s, x) => s + x.amount, 0)
+      low = Math.min(low, open, close)
+    }
+    if (low < -0.5) {
+      const d = new Date(`${anchor.date}T12:00:00`); d.setDate(d.getDate() - 1)
+      const adj = { id: `adj-${a.id}`, account_id: a.id, date: d.toISOString().slice(0, 10), amount: Math.round(low * 100) / 100,
+        description: 'Balance adjustment — not in your bank files yet', merchant: 'Balance adjustment', kind: 'transfer', category: 'Balance adjustment',
+        scope: a.scope, status: 'ok', review_reason: null, counterparty: null, transfer_id: null, recurring_key: null, source: 'adjustment', bank_category: null, balance_after: null,
+        notes: `Added automatically so balances worked back from your ${anchor.date} balance don't dip below $0. Recalculated on every import; removed once the real transaction is in your files.` }
+      t.push(adj); adjustments.push(adj)
+      say(`${a.name}: added a ${fmt(-adj.amount)} balance adjustment on ${adj.date} (something left the account after the last file date)`)
+    }
+  }
   const ms = [...new Set(t.map(x => x.date.slice(0, 7)))].sort()
   const after = end => t.filter(x => x.date > end && x.date <= anchor.date).reduce((s, x) => s + x.amount, 0)
   let low = null
@@ -167,6 +190,8 @@ for (const t of rows.filter(t => untouched.has(t.id))) {
   updated++
 }
 if (updated) console.log(`Re-checked ${updated} untouched transactions against the latest rules.`)
+await api('DELETE', 'fin_transactions', null, { query: '?source=eq.adjustment', prefer: 'return=minimal' })
+if (adjustments.length) await api('POST', 'fin_transactions', adjustments, { prefer: 'resolution=merge-duplicates,return=minimal' })
 if (statements.length) await api('POST', 'fin_statements', statements, { prefer: 'resolution=merge-duplicates,return=minimal' })
 await api('POST', 'fin_meta', [{ key: 'last_import', value: { at: new Date().toISOString(), through: txns.map(t => t.date).sort().at(-1), report: lines.join('\n') } }], { prefer: 'resolution=merge-duplicates,return=minimal' })
 console.log(`\nSaved: ${rows.length} transactions checked, ${statements.length} statement months.`)
