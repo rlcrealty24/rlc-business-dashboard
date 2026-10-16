@@ -122,7 +122,7 @@ export function useCalendarItems(from, to, { portal = true } = {}) {
   const { blocks, overrides, tasks } = useCeo()
   const [events] = useLocalStorage('dash_events', [])
   const [outlook] = useLocalStorage('dash_outlook_events', [])
-  const [accounts] = useLocalStorage('finance_accounts', [])
+  const [accounts] = useLocalStorage('finance_bills', [])   // due-day reminders only — no balances or amounts
   const feed = usePortalFeed(from, portal ? to : from)
   const { items: social } = useSocial()
 

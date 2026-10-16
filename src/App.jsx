@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
-import Finance from './pages/Finance.jsx'
+import Finance from './finance/FinancePage.jsx'
 import RealEstate from './pages/RealEstate.jsx'
 import CreditRepair from './pages/CreditRepair.jsx'
 import PortalProject from './pages/PortalProject.jsx'

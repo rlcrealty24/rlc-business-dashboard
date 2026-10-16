@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase.js'
 
 export const LOCAL_ONLY = new Set(['profile_photo', 'finance_pending_col_widths'])
+// Bank data moved to the private fin_* tables (Oct 2026). These old copies must never be
+// uploaded again: they're wiped from this browser and skipped by every sync.
+export const RETIRED = new Set(['finance_transactions', 'finance_accounts', 'finance_vendor_rules'])
+try { for (const k of RETIRED) localStorage.removeItem(k) } catch {}
 
 // ─── Realtime ─────────────────────────────────────────────────────────────────
 const listeners = new Map()
@@ -23,7 +27,7 @@ function ensureRealtime() {
       { event: '*', schema: 'public', table: 'dashboard_data' },
       ({ new: row }) => {
         const k = row?.key
-        if (k && !k.startsWith('__')) listeners.get(k)?.forEach(cb => cb(row.value, row.updated_at))
+        if (k && !k.startsWith('__') && !RETIRED.has(k)) listeners.get(k)?.forEach(cb => cb(row.value, row.updated_at))
       })
     .subscribe()
 }
@@ -68,7 +72,7 @@ export async function bulkSync() {
     // Check every local key
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i)
-      if (!key || key.startsWith('__') || LOCAL_ONLY.has(key)) continue
+      if (!key || key.startsWith('__') || LOCAL_ONLY.has(key) || RETIRED.has(key)) continue
       const localVal = safeRead(key)
       if (localVal === null || localVal === undefined) continue
       const remoteEntry = remote.get(key)
@@ -91,7 +95,7 @@ export async function bulkSync() {
 
     // Check cloud keys that don't exist locally at all
     for (const [key, { value: remoteVal }] of remote) {
-      if (key.startsWith('__') || LOCAL_ONLY.has(key)) continue
+      if (key.startsWith('__') || LOCAL_ONLY.has(key) || RETIRED.has(key)) continue
       if (localStorage.getItem(key) === null && remoteVal !== null && remoteVal !== undefined) {
         const len = richness(remoteVal)
         if (len > 0) {
@@ -115,7 +119,7 @@ export async function forceSyncAllToSupabase() {
   const jobs = []
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i)
-    if (!key || key.startsWith('__') || LOCAL_ONLY.has(key)) continue
+    if (!key || key.startsWith('__') || LOCAL_ONLY.has(key) || RETIRED.has(key)) continue
     const val = safeRead(key)
     if (val === null || val === undefined) continue
     jobs.push(
@@ -152,7 +156,7 @@ export function useLocalStorage(key, initialValue) {
 
   // Realtime: only apply if incoming data is richer than what's local
   useEffect(() => {
-    if (LOCAL_ONLY.has(key)) return
+    if (LOCAL_ONLY.has(key) || RETIRED.has(key)) return
     ensureRealtime()
     const cb = (incomingValue, ts) => {
       if (incomingValue === null || incomingValue === undefined) return
@@ -173,7 +177,7 @@ export function useLocalStorage(key, initialValue) {
     safeWrite(key, value)
     if (isMountWrite.current) { isMountWrite.current = false; return }
     if (isSyncApply.current)  { isSyncApply.current  = false; return }
-    if (LOCAL_ONLY.has(key)) return
+    if (LOCAL_ONLY.has(key) || RETIRED.has(key)) return
     if (value === null || value === undefined) return
     const ts = new Date().toISOString()
     setTs(key, ts)
