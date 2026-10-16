@@ -2,7 +2,7 @@
 // Dashboard over your imported bank statements (private fin_* tables).
 // Statements are imported by Claude from ~/Desktop/Finance 2026 (scripts/finance-import.mjs);
 // this page is for understanding the numbers and confirming what needs you.
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { DEFAULT_CATEGORIES } from './vendorMap.js'
@@ -58,7 +58,8 @@ export default function FinancePage() {
     ['budgets', 'Budgets & Goals'], ['accounts', 'Accounts'], ['categories', 'Categories'], ['tax', 'Tax'],
   ]
   return (
-    <div>
+    <div className="fin-page">
+      <style>{'.fin-page .card-header h3 { color: var(--text); font-weight: 700; font-family: var(--sans); letter-spacing: .06em; font-size: 0.82rem; }'}</style>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1>Finance</h1>
@@ -295,7 +296,7 @@ function Brokerage({ f, txns, month, goReview }) {
                   <td className="text-right text-sm">{a.owed ? $(a.owed) : '—'}</td>
                   <td className="text-right text-sm">{a.paid ? $(a.paid) : '—'}</td>
                   <td className="text-right text-sm" style={{ fontWeight: 600, color: a.balance > 0.5 ? '#b45309' : a.balance < -0.5 ? 'var(--red)' : 'var(--green)' }}>
-                    {Math.abs(a.balance) < 0.5 ? 'settled' : a.balance > 0 ? `owe ${$(a.balance)}` : `overpaid ${$(-a.balance)}`}
+                    {!a.owed ? <span className="text-muted" style={{ fontWeight: 400 }}>split deposits first</span> : Math.abs(a.balance) < 0.5 ? 'settled' : a.balance > 0 ? `owe ${$(a.balance)}` : `paid ${$(-a.balance)} more than split`}
                   </td>
                 </tr>
               ))}
@@ -587,29 +588,84 @@ function Budgets({ f, txns, scope, month, catNames }) {
 // ─── Accounts ────────────────────────────────────────────────────────────────
 function Accounts({ f, txns, fresh }) {
   const balances = accountBalances(f, txns)
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10)
   const [edit, setEdit] = useState({})
+  const [open, setOpen] = useState({})
   const st = id => f.statements.filter(s => s.account_id === id)
+  const hist = f.meta.balance_history || {}
+
+  /** Every balance you enter is kept (with its date); the latest one is the current reference point */
+  async function saveBalance(id) {
+    const e = edit[id] || {}
+    const entry = { amount: Number(e.amount), date: e.date || today, entered_at: new Date().toISOString() }
+    const list = [...(hist[id] || []).filter(x => x.date !== entry.date), entry].sort((x, y) => x.date.localeCompare(y.date))
+    await f.setMeta('balance_history', { ...hist, [id]: list })
+    await f.setMeta('balances', { ...(f.meta.balances || {}), [id]: { amount: list.at(-1).amount, date: list.at(-1).date } })
+    setEdit({ ...edit, [id]: {} })
+  }
+  async function removeBalance(id, date) {
+    const list = (hist[id] || []).filter(x => x.date !== date)
+    await f.setMeta('balance_history', { ...hist, [id]: list })
+    const rest = { ...(f.meta.balances || {}) }
+    if (list.length) rest[id] = { amount: list.at(-1).amount, date: list.at(-1).date }; else delete rest[id]
+    await f.setMeta('balances', rest)
+  }
+  /** Your entries + month-end balances from bank files or worked back — newest first */
+  const historyFor = id => [
+    ...(hist[id] || []).map(x => ({ date: x.date, amount: x.amount, source: 'you' })),
+    ...st(id).filter(s => s.closing_balance != null).map(s => ({ date: s.period_end, amount: Number(s.closing_balance), source: s.status === 'reconciled' ? 'bank file' : 'worked back' })),
+  ].sort((x, y) => y.date.localeCompare(x.date))
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <div className="card">
         <div className="table-container"><table>
-          <thead><tr><th>Account</th><th>Data through</th><th>Months checked</th><th className="text-right">Balance</th><th>Set balance</th></tr></thead>
+          <thead><tr><th>Account</th><th>Data through</th><th>Months checked</th><th className="text-right">Balance</th><th>Add a balance</th></tr></thead>
           <tbody>
             {f.accounts.map(a => {
               const b = balances.find(x => x.id === a.id), s = st(a.id), ok = s.filter(x => x.status === 'reconciled' || x.status === 'derived').length, derived = s.some(x => x.status === 'derived')
+              const h = historyFor(a.id), e = edit[a.id] || {}
               return (
-                <tr key={a.id} style={a.excluded ? { opacity: 0.55 } : undefined}>
-                  <td className="text-sm"><strong>{a.name}</strong><div className="text-xs text-muted">{a.excluded ? 'Excluded from all reporting' : `${a.scope === 'business' ? 'Business' : 'Personal'} · ${a.type?.replace('_', ' ')}`}</div></td>
-                  <td className="text-sm">{fresh.per[a.id] ? fmtDay(fresh.per[a.id]) : <span className="text-muted">no statements</span>}</td>
-                  <td className="text-sm">{s.length ? <><span style={{ color: ok === s.length ? 'var(--green)' : 'var(--amber)' }}>{ok}/{s.length} {derived ? 'worked back from your balance' : 'balanced'}</span>{s.some(x => x.status === 'off') && <div className="text-xs" style={{ color: '#b45309' }}>dips below $0 in {s.filter(x => x.status === 'off').map(x => monthName(x.id.slice(-7))).join(', ')} — a transaction may be missing</div>}</> : <span className="text-muted">{a.type === 'credit_card' || a.excluded ? '—' : 'needs PDF statements'}</span>}</td>
-                  <td className="text-right text-sm">{b?.balance != null ? <>{$(b.balance, true)}<div className="text-xs text-muted">{b.from === 'bank' ? 'from bank file' : 'entered'} · {fmtDay(b.asOf)}</div></> : '—'}</td>
-                  <td>{!a.excluded && (
-                    <span style={{ display: 'flex', gap: 4 }}>
-                      <input type="number" placeholder="$" value={edit[a.id] || ''} onChange={e => setEdit({ ...edit, [a.id]: e.target.value })} style={{ width: 100, fontSize: '0.78rem', padding: '4px 6px' }} />
-                      <button className="btn btn-sm" disabled={edit[a.id] === undefined || edit[a.id] === ''} onClick={() => { f.setMeta('balances', { ...(f.meta.balances || {}), [a.id]: { amount: Number(edit[a.id]), date: new Date().toISOString().slice(0, 10) } }); setEdit({ ...edit, [a.id]: '' }) }}>Save</button>
-                    </span>
-                  )}</td>
-                </tr>
+                <Fragment key={a.id}>
+                  <tr style={a.excluded ? { opacity: 0.55 } : undefined}>
+                    <td className="text-sm"><strong>{a.name}</strong><div className="text-xs text-muted">{a.excluded ? 'Excluded from all reporting' : `${a.scope === 'business' ? 'Business' : 'Personal'} · ${a.type?.replace('_', ' ')}`}</div></td>
+                    <td className="text-sm">{fresh.per[a.id] ? fmtDay(fresh.per[a.id]) : <span className="text-muted">no statements</span>}</td>
+                    <td className="text-sm">{s.length ? <><span style={{ color: ok === s.length ? 'var(--green)' : 'var(--amber)' }}>{ok}/{s.length} {derived ? 'worked back from your balance' : 'balanced'}</span>{(() => {
+                      const off = s.filter(x => x.status === 'off').sort((x, y) => x.id.localeCompare(y.id))
+                      if (!off.length) return null
+                      const low = Math.min(...off.map(x => Math.min(Number(x.opening_balance), Number(x.closing_balance))))
+                      return <div className="text-xs" style={{ color: '#b45309' }}>Runs about {$(-low)} below $0 from {monthName(off[0].id.slice(-7))}{off.length > 1 ? ` to ${monthName(off.at(-1).id.slice(-7))}` : ''} — most likely one missing deposit of about {$(-low)} (a PDF statement will confirm)</div>
+                    })()}</> : <span className="text-muted">{a.excluded ? '—' : 'no running balance yet — add PDFs or a balance'}</span>}</td>
+                    <td className="text-right text-sm">{b?.balance != null ? <>{$(b.balance, true)}<div className="text-xs text-muted">{b.from === 'bank' ? 'from bank file' : 'entered'} · {fmtDay(b.asOf)}</div></> : '—'}
+                      {h.length > 0 && <div><button className="btn btn-sm" style={{ padding: '0 6px', marginTop: 4 }} onClick={() => setOpen({ ...open, [a.id]: !open[a.id] })}>{open[a.id] ? 'Hide' : 'History'} ({h.length})</button></div>}
+                    </td>
+                    <td>{!a.excluded && (
+                      <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        <input type="number" placeholder="$" value={e.amount ?? ''} onChange={ev => setEdit({ ...edit, [a.id]: { ...e, amount: ev.target.value } })} style={{ width: 100, fontSize: '0.78rem', padding: '4px 6px' }} />
+                        <input type="date" value={e.date || today} max={today} onChange={ev => setEdit({ ...edit, [a.id]: { ...e, date: ev.target.value } })} style={{ width: 130, fontSize: '0.78rem', padding: '4px 6px' }} title="Balance as of this date" />
+                        <button className="btn btn-sm" disabled={e.amount === undefined || e.amount === ''} onClick={() => saveBalance(a.id)}>Save</button>
+                      </span>
+                    )}</td>
+                  </tr>
+                  {open[a.id] && (
+                    <tr><td colSpan={5} style={{ background: 'var(--surface-hover)' }}>
+                      <table style={{ width: '100%', maxWidth: 560 }}><tbody>
+                        {h.map((x, i) => {
+                          const prev = h[i + 1]
+                          return (
+                            <tr key={`${x.date}${x.source}`}>
+                              <td className="text-sm">{fmtDay(x.date)} {x.date.slice(0, 4)}</td>
+                              <td className="text-right text-sm"><strong>{$(x.amount, true)}</strong></td>
+                              <td className="text-right text-xs" style={{ color: prev ? (x.amount >= prev.amount ? 'var(--green)' : 'var(--red)') : undefined }}>{prev ? `${x.amount >= prev.amount ? '+' : ''}${$(x.amount - prev.amount, true)}` : ''}</td>
+                              <td className="text-xs text-muted">{x.source === 'you' ? 'entered by you' : x.source}</td>
+                              <td>{x.source === 'you' && <button className="btn btn-sm" style={{ padding: '0 6px' }} title="Remove this entry" onClick={() => removeBalance(a.id, x.date)}>×</button>}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody></table>
+                    </td></tr>
+                  )}
+                </Fragment>
               )
             })}
           </tbody>

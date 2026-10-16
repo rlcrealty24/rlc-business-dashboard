@@ -153,7 +153,12 @@ await api('POST', 'fin_accounts', ACCOUNTS.map(({ id, name, institution, type, l
 const rows = txns.map(({ _wallet, ...t }) => t)
 for (let i = 0; i < rows.length; i += 400) await api('POST', 'fin_transactions', rows.slice(i, i + 400), { prefer: 'resolution=ignore-duplicates,return=minimal' })
 // Rows already saved: re-apply the latest rules — but only to rows you haven't touched in the app
-const existing = await api('GET', 'fin_transactions', null, { query: '?select=id,created_at,updated_at&limit=20000' })
+const existing = []
+for (let from = 0; ; from += 1000) {     // the API returns at most 1,000 rows per request
+  const page = await api('GET', 'fin_transactions', null, { query: `?select=id,created_at,updated_at&order=id&offset=${from}&limit=1000` })
+  existing.push(...page)
+  if (page.length < 1000) break
+}
 const untouched = new Set(existing.filter(r => Date.parse(r.updated_at) - Date.parse(r.created_at) < 2000).map(r => r.id))
 const FIELDS = ['kind', 'category', 'scope', 'status', 'review_reason', 'counterparty', 'transfer_id', 'merchant']
 let updated = 0
