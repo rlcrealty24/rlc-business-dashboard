@@ -256,6 +256,7 @@ function ruleText(t) {
 }
 
 function Review({ f, txns, catNames }) {
+  const acct = Object.fromEntries(f.accounts.map(a => [a.id, a]))
   const groups = useMemo(() => {
     const g = new Map()
     for (const t of txns) { const k = t.review_reason || 'Check this'; if (!g.has(k)) g.set(k, []); g.get(k).push(t) }
@@ -267,9 +268,9 @@ function Review({ f, txns, catNames }) {
       <div className="text-sm text-muted">Pick what each one is and press ✓. Tick <strong>Always</strong> and every matching transaction — now and in future imports — is handled the same way.</div>
       {groups.map(([reason, list]) => (
         <div key={reason} className="card">
-          <div className="card-header"><h3>{reason}</h3><span className="text-xs text-muted">{list.length}</span></div>
+          <div className="card-header"><h3 style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--sans, inherit)', letterSpacing: '0.04em' }}>{reason}</h3><span className="text-xs text-muted">{list.length}</span></div>
           <div className="table-container"><table><tbody>
-            {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} />)}
+            {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} />)}
           </tbody></table></div>
           {list.length > 50 && <div className="card-body text-xs text-muted">+{list.length - 50} more — rules you save clear many at once.</div>}
         </div>
@@ -278,7 +279,7 @@ function Review({ f, txns, catNames }) {
   )
 }
 
-function ReviewRow({ t, f, catNames }) {
+function ReviewRow({ t, f, catNames, account }) {
   const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '' })
   const [busy, setBusy] = useState(false)
   async function confirm() {
@@ -298,6 +299,7 @@ function ReviewRow({ t, f, catNames }) {
     <tr>
       <td className="text-sm" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
       <td className="text-sm" style={{ minWidth: 180 }}>{t.merchant}<div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
+      <td style={{ whiteSpace: 'nowrap' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
       <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap' }}><strong>{$(t.amount, true)}</strong></td>
       <td>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
