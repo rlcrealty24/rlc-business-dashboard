@@ -1,7 +1,12 @@
 // Numbers for the Finance dashboard. Transfers between your accounts never count as income or spending;
 // refunds reduce spending in their category.
 
-export const SPEND = t => t.kind === 'expense' || t.kind === 'refund'
+export const SPEND = t => t.kind === 'expense' || t.kind === 'refund' || t.kind === 'reimbursement'
+const splitSum = (t, parts) => (Array.isArray(t.splits) ? t.splits : []).filter(p => parts.includes(p.part)).reduce((s, p) => s + Number(p.amount || 0), 0)
+/** The part of a commission deposit that is actually RLC's / yours (agent portions are owed, not earned) */
+export const earnedOf = t => splitSum(t, ['brokerage', 'fee', 'own'])
+export const unsplitOf = t => (t.kind === 'commission_in' ? Math.round((t.amount - splitSum(t, ['brokerage', 'fee', 'own', 'agent'])) * 100) / 100 : 0)
+const isDraw = t => t.kind === 'transfer' && t.category === 'Owner draw from RLC'
 export const inScope = (t, scope) => scope === 'all' || (t.scope || 'personal') === scope
 const r2 = n => Math.round(n * 100) / 100
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 864e5)
@@ -13,12 +18,14 @@ export function monthly(txns, scope) {
   for (const t of txns) {
     if (!inScope(t, scope) || t.status === 'excluded') continue
     const m = t.date.slice(0, 7)
-    if (!out.has(m)) out.set(m, { month: m, income: 0, spending: 0 })
+    if (!out.has(m)) out.set(m, { month: m, income: 0, spending: 0, draws: 0, unsplit: 0 })
     const row = out.get(m)
     if (t.kind === 'income') row.income += t.amount
+    else if (t.kind === 'commission_in') { row.income += earnedOf(t); row.unsplit += unsplitOf(t) }
     else if (SPEND(t)) row.spending -= t.amount
+    else if (scope === 'personal' && isDraw(t)) row.draws += t.amount
   }
-  return [...out.values()].sort((a, b) => a.month.localeCompare(b.month)).map(r => ({ ...r, income: r2(r.income), spending: r2(r.spending), net: r2(r.income - r.spending) }))
+  return [...out.values()].sort((a, b) => a.month.localeCompare(b.month)).map(r => ({ ...r, income: r2(r.income), spending: r2(r.spending), draws: r2(r.draws), unsplit: r2(r.unsplit), net: r2(r.income + r.draws - r.spending) }))
 }
 
 export function byCategory(txns, scope, month) {
@@ -141,4 +148,39 @@ export function insights({ txns, scope, month, budgets }) {
   const dining = now.filter(c => /restaurant|dining|fast food|coffee|meals/i.test(c.category)).reduce((s, c) => s + c.amount, 0)
   if (dining > 300) out.push({ level: 'info', title: `$${Math.round(dining)} on eating out and coffee`, body: 'A common place to save — even cutting a third saves about $' + Math.round(dining / 3) + ' a month.' })
   return out
+}
+
+// ─── RLC Realty: brokerage view ──────────────────────────────────────────────
+/** Commission accounting for a period: gross in, owed to agents, earned by RLC, your production, costs, draws */
+export function brokerage(txns, from, to) {
+  const inP = t => t.date >= from && t.date <= to && t.scope === 'business'
+  const r = { gross: 0, agentPortion: 0, rlcEarned: 0, fees: 0, own: 0, otherIncome: 0, unsplit: 0, unsplitCount: 0, payouts: 0, opex: 0, draws: 0, contributions: 0 }
+  for (const t of txns.filter(inP)) {
+    if (t.kind === 'commission_in') {
+      r.gross += t.amount
+      r.agentPortion += splitSum(t, ['agent']); r.rlcEarned += splitSum(t, ['brokerage']); r.fees += splitSum(t, ['fee']); r.own += splitSum(t, ['own'])
+      const u = unsplitOf(t); if (Math.abs(u) >= 0.01) { r.unsplit += u; r.unsplitCount++ }
+    } else if (t.kind === 'income') r.otherIncome += t.amount
+    else if (t.kind === 'agent_payout') r.payouts -= t.amount
+    else if (SPEND(t)) r.opex -= t.amount
+    else if (t.kind === 'owner_draw') r.draws -= t.amount
+    else if (t.kind === 'owner_contribution') r.contributions += t.amount
+  }
+  for (const k of Object.keys(r)) r[k] = r2(r[k])
+  r.revenue = r2(r.rlcEarned + r.fees + r.otherIncome)
+  r.profit = r2(r.revenue + r.own - r.opex)
+  return r
+}
+
+/** What each agent was owed (their split of deposits) vs what they were paid — all time */
+export function agentLedger(txns) {
+  const norm = n => (n || 'Unassigned').trim()
+  const key = n => norm(n).toLowerCase()
+  const map = new Map()
+  const row = n => { const k = key(n); if (!map.has(k)) map.set(k, { agent: norm(n), owed: 0, paid: 0, last: null }); return map.get(k) }
+  for (const t of txns) {
+    if (t.kind === 'commission_in') for (const p of (t.splits || []).filter(p => p.part === 'agent')) { const a = row(p.agent); a.owed += Number(p.amount || 0); a.last = t.date > (a.last || '') ? t.date : a.last }
+    if (t.kind === 'agent_payout') { const a = row(t.counterparty); a.paid -= t.amount; a.last = t.date > (a.last || '') ? t.date : a.last }
+  }
+  return [...map.values()].map(a => ({ ...a, owed: r2(a.owed), paid: r2(a.paid), balance: r2(a.owed - a.paid) })).sort((a, b) => b.balance - a.balance || b.paid - a.paid)
 }

@@ -6,13 +6,15 @@ import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { DEFAULT_CATEGORIES } from './vendorMap.js'
+import { KIND_LABELS } from './engine.js'
+import { useCrmCommissions } from './crm.js'
 import { useFinance } from './store.js'
-import { byCategory, duplicates, findRecurring, freshness, inScope, insights, monthly, months as monthList, recurring, SPEND, topMerchants } from './analytics.js'
+import { agentLedger, brokerage, byCategory, earnedOf, duplicates, findRecurring, freshness, inScope, insights, monthly, months as monthList, recurring, SPEND, topMerchants } from './analytics.js'
 import { CategoriesTab, TaxTab } from '../pages/Finance.jsx'
 
 const C_INCOME = '#2a78d6', C_SPEND = '#eb6834'    // reference palette slots 1 + 2
 const SYSTEM_CATS = ['Transfer', 'Wallet transfer', 'Credit Card Payment', 'Personal Savings', 'Owner Draw/Personal Use']
-const KINDS = ['expense', 'income', 'refund', 'transfer']
+const KINDS = Object.keys(KIND_LABELS)
 const START = '2026-01-01'   // reporting (and reconciliation) starts January 2026
 const $ = (n, cents = false) => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 })
 const monthName = (m, long = false) => new Date(`${m}-15T12:00:00`).toLocaleDateString('en-US', { month: long ? 'long' : 'short', year: long ? 'numeric' : '2-digit' })
@@ -35,6 +37,8 @@ export default function FinancePage() {
   const inProgress = fresh.latest && ms.at(-1) === fresh.latest.slice(0, 7)
   const sel = month && ms.includes(month) ? month : (inProgress && ms.length > 1 ? ms.at(-2) : ms.at(-1))
   const review = live.filter(t => t.status === 'review')
+  const crm = useCrmCommissions()
+  const agentNames = useMemo(() => [...new Set([...crm.agents, ...f.txns.filter(t => t.kind === 'agent_payout' && t.counterparty).map(t => t.counterparty)])].sort(), [crm.agents, f.txns])
   const catNames = useMemo(() => [...new Set([...(categories || []).map(c => c.name), ...SYSTEM_CATS])].sort(), [categories])
 
   if (f.loading) return <div className="page-header"><h1>Finance</h1><p>Loading your accounts…</p></div>
@@ -79,13 +83,14 @@ export default function FinancePage() {
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}</div>
 
       {tab === 'dashboard' && <Dashboard f={f} txns={live} scope={scope} month={sel} months={ms} setMonth={setMonth} fresh={fresh} goReview={() => setTab('review')} />}
-      {tab === 'review' && <Review f={f} txns={review} catNames={catNames} />}
+      {tab === 'review' && <Review f={f} txns={review} catNames={catNames} agents={agentNames} crm={crm.items} />}
       {tab === 'transactions' && <Transactions f={f} txns={live} scope={scope} months={ms} catNames={catNames} />}
       {tab === 'budgets' && <Budgets f={f} txns={live} scope={scope} month={sel} catNames={catNames} />}
       {tab === 'accounts' && <Accounts f={f} txns={f.txns} fresh={fresh} />}
       {tab === 'categories' && <CategoriesTab categories={categories} setCategories={setCategories} />}
-      {tab === 'tax' && <TaxTab transactions={live.filter(t => (t.scope === 'business') && (t.kind === 'income' || SPEND(t))).map(t => ({
-        id: t.id, date: t.date, type: t.kind === 'income' ? 'income' : 'expense', amount: t.kind === 'income' ? t.amount : -t.amount,
+      {tab === 'tax' && <TaxTab transactions={live.filter(t => (t.scope === 'business') && (t.kind === 'income' || t.kind === 'commission_in' || SPEND(t))).map(t => ({
+        id: t.id, date: t.date, type: t.kind === 'income' || t.kind === 'commission_in' ? 'income' : 'expense',
+        amount: t.kind === 'commission_in' ? earnedOf(t) : t.kind === 'income' ? t.amount : -t.amount,
         category: t.category, spendingType: 'business', status: 'cleared', description: t.merchant,
       }))} />}
     </div>
@@ -126,16 +131,19 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
       </div>
 
       <div className="metrics-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
-        <div className="metric-card metric-card-income"><div className="metric-label">Money in</div><div className="metric-value">{$(cur.income)}</div>{delta(cur.income, avg('income'), true)}</div>
+        <div className="metric-card metric-card-income"><div className="metric-label">{scope === 'business' ? 'Earned (RLC + your deals)' : 'Money earned'}</div><div className="metric-value">{$(cur.income)}</div>{delta(cur.income, avg('income'), true)}</div>
+        {scope === 'personal' && <div className="metric-card metric-card-blue"><div className="metric-label">Paid yourself from RLC</div><div className="metric-value">{$(cur.draws || 0)}</div><div className="metric-change neutral">owner draws — not new earnings</div></div>}
         <div className="metric-card metric-card-expense"><div className="metric-label">Spending</div><div className="metric-value">{$(cur.spending)}</div>{delta(cur.spending, avg('spending'), false)}</div>
-        <div className="metric-card metric-card-net"><div className="metric-label">Net cash flow</div><div className="metric-value" style={{ color: cur.net < 0 ? 'var(--red)' : 'var(--green)' }}>{$(cur.net)}</div><div className="metric-change neutral">{cur.income > 0 ? `${Math.round((cur.net / cur.income) * 100)}% of money in kept` : '—'}</div></div>
+        <div className="metric-card metric-card-net"><div className="metric-label">Net cash flow</div><div className="metric-value" style={{ color: cur.net < 0 ? 'var(--red)' : 'var(--green)' }}>{$(cur.net)}</div><div className="metric-change neutral">{scope === 'personal' ? 'earned + draws − spending' : cur.income > 0 ? `${Math.round((cur.net / cur.income) * 100)}% of earnings kept` : '—'}</div></div>
         <div className="metric-card metric-card-pending" style={{ cursor: review ? 'pointer' : 'default' }} onClick={review ? goReview : undefined}>
           <div className="metric-label">Needs your review</div><div className="metric-value">{review}</div><div className="metric-change neutral">{review ? 'this month · tap to review' : 'all clear this month'}</div>
         </div>
       </div>
 
+      {scope !== 'personal' && <Brokerage f={f} txns={txns} month={month} goReview={goReview} />}
+
       <div className="card">
-        <div className="card-header"><h3>Money in vs spending · last {series.length} months</h3><span className="text-xs text-muted">transfers between your accounts excluded</span></div>
+        <div className="card-header"><h3>Earned vs spending · last {series.length} months</h3><span className="text-xs text-muted">agent pass-through, owner draws and transfers excluded</span></div>
         <div className="card-body" style={{ height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={series.map(m => ({ ...m, label: monthName(m.month) }))} barGap={2} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
@@ -144,7 +152,7 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
               <YAxis tickFormatter={v => `$${Math.round(v / 1000)}k`} tickLine={false} axisLine={false} tick={{ fontSize: 12, fill: 'var(--text-muted)' }} width={48} />
               <Tooltip formatter={(v, n) => [$(v), n]} labelFormatter={(l, p) => `${l} · net ${$(p?.[0]?.payload?.net ?? 0)}`} cursor={{ fill: 'rgba(0,0,0,0.04)' }} />
               <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="income" name="Money in" fill={C_INCOME} radius={[4, 4, 0, 0]} maxBarSize={24} />
+              <Bar dataKey="income" name="Earned" fill={C_INCOME} radius={[4, 4, 0, 0]} maxBarSize={24} />
               <Bar dataKey="spending" name="Spending" fill={C_SPEND} radius={[4, 4, 0, 0]} maxBarSize={24} />
             </BarChart>
           </ResponsiveContainer>
@@ -219,6 +227,87 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
   )
 }
 
+// ─── RLC Realty: what was earned vs. what passed through to agents ───────────
+function Brokerage({ f, txns, month, goReview }) {
+  const last = `${month}-31`
+  const m = brokerage(txns, `${month}-01`, last)
+  const y = brokerage(txns, `${month.slice(0, 4)}-01-01`, last)
+  const ledger = agentLedger(txns.filter(t => t.date <= last))
+  const owed = ledger.reduce((s, a) => s + Math.max(0, a.balance), 0)
+  const truist = accountBalances(f, f.txns).find(a => a.scope === 'business' && a.balance != null)
+  const rows = [
+    ['Commission deposits (gross, as the bank shows)', 'gross', false],
+    ['Agents’ portions (owed to agents — not RLC’s money)', 'agentPortion', true],
+    ['RLC’s split', 'rlcEarned', false],
+    ['Transaction fees', 'fees', false],
+    ['Other business income', 'otherIncome', false],
+    ['= RLC revenue', 'revenue', false, true],
+    ['Your own production (deals you closed)', 'own', false],
+    ['Operating expenses', 'opex', true],
+    ['= Business profit', 'profit', false, true],
+    ['Paid out to agents', 'payouts', true],
+    ['Owner draws (RLC → you)', 'draws', true],
+    ['Owner contributions (you → RLC)', 'contributions', false],
+  ]
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, alignItems: 'start' }}>
+      <div className="card">
+        <div className="card-header"><h3>RLC Realty — earned vs. passed through</h3></div>
+        {y.unsplitCount > 0 && (
+          <div className="card-body text-sm" style={{ background: '#fffbeb', borderBottom: '1px solid #fcd34d' }}>
+            <strong>{$(y.unsplit)}</strong> in {y.unsplitCount} commission deposits isn’t split yet, so it isn’t counted as revenue. <a href="#review" onClick={e => { e.preventDefault(); goReview() }}>Split them in Review →</a>
+          </div>
+        )}
+        <div className="table-container"><table>
+          <thead><tr><th></th><th className="text-right">{monthName(month)}</th><th className="text-right">{month.slice(0, 4)} to date</th></tr></thead>
+          <tbody>
+            {rows.map(([label, k, minus, total]) => (
+              <tr key={k} style={total ? { background: 'var(--surface-hover)' } : undefined}>
+                <td className="text-sm" style={total ? { fontWeight: 700 } : undefined}>{label}</td>
+                <td className="text-right text-sm" style={total ? { fontWeight: 700 } : undefined}>{m[k] ? $(minus ? -m[k] : m[k]) : '—'}</td>
+                <td className="text-right text-sm" style={total ? { fontWeight: 700 } : undefined}>{y[k] ? $(minus ? -y[k] : y[k]) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div className="card">
+          <div className="card-header"><h3>Truist: money vs. obligations</h3></div>
+          <div className="card-body" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0,1fr))', gap: 10 }}>
+            <div><div className="metric-label">In the account</div><div style={{ fontSize: '1.3rem', fontWeight: 700 }}>{truist ? $(truist.balance) : '—'}</div><div className="text-xs text-muted">{truist ? `as of ${fmtDay(truist.asOf)}` : ''}</div></div>
+            <div><div className="metric-label">Owed to agents</div><div style={{ fontSize: '1.3rem', fontWeight: 700, color: owed ? '#b45309' : undefined }}>{$(owed)}</div><div className="text-xs text-muted">from splits not yet paid</div></div>
+            <div><div className="metric-label">Available</div><div style={{ fontSize: '1.3rem', fontWeight: 700, color: truist && truist.balance - owed < 0 ? 'var(--red)' : 'var(--green)' }}>{truist ? $(truist.balance - owed) : '—'}</div><div className="text-xs text-muted">after agent obligations</div></div>
+          </div>
+          {y.unsplitCount > 0 && <div className="card-body text-xs text-muted" style={{ paddingTop: 0 }}>“Owed to agents” only counts deposits you’ve split — it will grow as you split the rest.</div>}
+        </div>
+
+        <div className="card">
+          <div className="card-header"><h3>Agents: owed vs. paid</h3><span className="text-xs text-muted">all time</span></div>
+          <div className="table-container"><table>
+            <thead><tr><th>Agent</th><th className="text-right">Owed</th><th className="text-right">Paid</th><th className="text-right">Balance</th></tr></thead>
+            <tbody>
+              {ledger.length === 0 && <tr><td colSpan={4} className="text-sm text-muted">Split commission deposits and confirm payouts in Review to see each agent here.</td></tr>}
+              {ledger.map(a => (
+                <tr key={a.agent}>
+                  <td className="text-sm">{a.agent}</td>
+                  <td className="text-right text-sm">{a.owed ? $(a.owed) : '—'}</td>
+                  <td className="text-right text-sm">{a.paid ? $(a.paid) : '—'}</td>
+                  <td className="text-right text-sm" style={{ fontWeight: 600, color: a.balance > 0.5 ? '#b45309' : a.balance < -0.5 ? 'var(--red)' : 'var(--green)' }}>
+                    {Math.abs(a.balance) < 0.5 ? 'settled' : a.balance > 0 ? `owe ${$(a.balance)}` : `overpaid ${$(-a.balance)}`}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table></div>
+          <div className="card-body text-xs text-muted">Overpaid usually means a payout whose deposit isn’t split yet, or a payout covering an older deal.</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Latest balance per account: Truist from its running balance, others from the last balance you entered */
 export function accountBalances(f, txns) {
   return f.accounts.filter(a => !a.excluded).map(a => {
@@ -255,7 +344,7 @@ function ruleText(t) {
   return (t.merchant || t.description).toLowerCase().slice(0, 30)
 }
 
-function Review({ f, txns, catNames }) {
+function Review({ f, txns, catNames, agents, crm }) {
   const acct = Object.fromEntries(f.accounts.map(a => [a.id, a]))
   const groups = useMemo(() => {
     const g = new Map()
@@ -265,12 +354,13 @@ function Review({ f, txns, catNames }) {
   if (!txns.length) return <div className="card"><div className="card-body">Nothing waiting — every transaction is categorized. 🎉</div></div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <datalist id="fin-agents">{agents.map(n => <option key={n} value={n} />)}</datalist>
       <div className="text-sm text-muted">Pick what each one is and press ✓. Tick <strong>Always</strong> and every matching transaction — now and in future imports — is handled the same way.</div>
       {groups.map(([reason, list]) => (
         <div key={reason} className="card">
           <div className="card-header"><h3 style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--sans, inherit)', letterSpacing: '0.04em' }}>{reason}</h3><span className="text-xs text-muted">{list.length}</span></div>
           <div className="table-container"><table><tbody>
-            {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} />)}
+            {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} agents={agents} crm={crm} />)}
           </tbody></table></div>
           {list.length > 50 && <div className="card-body text-xs text-muted">+{list.length - 50} more — rules you save clear many at once.</div>}
         </div>
@@ -279,42 +369,105 @@ function Review({ f, txns, catNames }) {
   )
 }
 
-function ReviewRow({ t, f, catNames, account }) {
-  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '' })
+function ReviewRow({ t, f, catNames, account, agents, crm }) {
+  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '' })
   const [busy, setBusy] = useState(false)
+  const sel = { fontSize: '0.78rem', padding: '4px 6px', width: 'auto' }
+  const done = async patch => { setBusy(true); try { await f.updateTxns([t.id], { status: 'ok', review_reason: null, ...patch }) } finally { setBusy(false) } }
+
   async function confirm() {
     setBusy(true)
     try {
-      const patch = { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null, notes: d.notes || null }
+      const patch = { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null, notes: d.notes || null, counterparty: d.agent || t.counterparty || null }
       if (d.always && d.match.trim()) {
         await f.addRule({ match: d.match, category: d.category, scope: d.scope, kind: d.kind })
         const ids = f.txns.filter(x => x.status === 'review' && x.description.toLowerCase().includes(d.match.trim().toLowerCase())).map(x => x.id)
         await f.updateTxns([...new Set([t.id, ...ids])], { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null })
-        if (d.notes) await f.updateTxns([t.id], { notes: d.notes })
+        await f.updateTxns([t.id], { notes: d.notes || null, counterparty: patch.counterparty })
       } else await f.updateTxns([t.id], patch)
     } finally { setBusy(false) }
   }
-  const sel = { fontSize: '0.78rem', padding: '4px 6px', width: 'auto' }
+  const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution'].includes(d.kind)
   return (
     <tr>
-      <td className="text-sm" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
-      <td className="text-sm" style={{ minWidth: 180 }}>{t.merchant}<div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
-      <td style={{ whiteSpace: 'nowrap' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
-      <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap' }}><strong>{$(t.amount, true)}</strong></td>
-      <td>
+      <td className="text-sm" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
+      <td className="text-sm" style={{ minWidth: 180, verticalAlign: 'top' }}>{t.counterparty || t.merchant}<div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
+      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
+      <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{$(t.amount, true)}</strong></td>
+      <td style={{ verticalAlign: 'top' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k}>{k}</option>)}</select>
-          <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={sel}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
-          <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={sel}><option value="personal">Personal</option><option value="business">Business</option></select>
-          <input placeholder="note (optional)" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 120 }} />
-          <label className="text-xs" style={{ display: 'flex', gap: 3, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
-            <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} /> Always
-          </label>
-          {d.always && <input value={d.match} onChange={e => setD({ ...d, match: e.target.value })} title="Matches any description containing this" style={{ ...sel, width: 120 }} />}
-          <button className="btn btn-sm btn-primary" disabled={busy || (!d.category && d.kind !== 'transfer')} onClick={confirm}>✓</button>
+          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={sel}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          {d.kind === 'agent_payout' && <>
+            <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 150 }} />
+            <button className="btn btn-sm btn-primary" disabled={busy || !d.agent.trim()} onClick={() => done({ kind: 'agent_payout', category: 'Agent Commission', scope: 'business', counterparty: d.agent.trim(), notes: d.notes || null })}>✓</button>
+          </>}
+          {['owner_draw', 'owner_contribution', 'transfer'].includes(d.kind) && (
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: d.kind, category: d.kind === 'owner_draw' ? 'Owner Draw/Personal Use' : d.kind === 'owner_contribution' ? 'Owner contribution to RLC' : 'Transfer', notes: d.notes || null })}>✓</button>
+          )}
+          {needsCategory && <>
+            <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={sel}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
+            <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={sel}><option value="personal">Personal</option><option value="business">Business</option></select>
+            <input placeholder="note (optional)" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 120 }} />
+            <label className="text-xs" style={{ display: 'flex', gap: 3, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
+              <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} /> Always
+            </label>
+            {d.always && <input value={d.match} onChange={e => setD({ ...d, match: e.target.value })} title="Matches any description containing this" style={{ ...sel, width: 120 }} />}
+            <button className="btn btn-sm btn-primary" disabled={busy || !d.category} onClick={confirm}>✓</button>
+          </>}
         </div>
+        {d.kind === 'commission_in' && <SplitEditor t={t} agents={agents} crm={crm} busy={busy} onSave={splits => done({ kind: 'commission_in', category: 'Commission Income', scope: 'business', splits, deal_ref: splits.find(s => s.deal_ref)?.deal_ref || null })} />}
       </td>
     </tr>
+  )
+}
+
+/** Split a commission deposit: agent portion (owed), RLC's split + fees (earned), or your own deal */
+function SplitEditor({ t, agents, crm, busy, onSave }) {
+  const gross = Math.abs(t.amount)
+  const existing = Array.isArray(t.splits) ? t.splits : []
+  const [own, setOwn] = useState(existing.some(p => p.part === 'own'))
+  const [agent, setAgent] = useState(existing.find(p => p.part === 'agent')?.agent || '')
+  const [agentAmt, setAgentAmt] = useState(existing.find(p => p.part === 'agent')?.amount ?? '')
+  const [fee, setFee] = useState(existing.find(p => p.part === 'fee')?.amount ?? '')
+  const [deal, setDeal] = useState(existing.find(p => p.deal_ref)?.deal_ref || '')
+  const a = own ? 0 : Number(agentAmt) || 0, fz = Number(fee) || 0
+  const rest = Math.round((gross - a - fz) * 100) / 100
+  const pct = p => { setOwn(false); setAgentAmt(String(Math.round(gross * p) / 100)) }
+  const matches = (crm || []).filter(c => Math.abs(c.amount - gross) <= 1 && Math.abs(Date.parse(c.date || t.date) - Date.parse(t.date)) <= 45 * 864e5).slice(0, 3)
+  const save = () => onSave(own
+    ? [{ part: 'own', amount: Math.round((gross - fz) * 100) / 100, deal_ref: deal || null }, ...(fz ? [{ part: 'fee', amount: fz }] : [])]
+    : [{ part: 'agent', amount: a, agent: agent.trim(), deal_ref: deal || null }, { part: 'brokerage', amount: rest }, ...(fz ? [{ part: 'fee', amount: fz }] : [])].filter(p => p.amount))
+  const box = { fontSize: '0.78rem', padding: '4px 6px' }
+  return (
+    <div style={{ marginTop: 8, padding: 10, background: 'var(--surface-hover)', borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6, maxWidth: 560 }}>
+      {matches.map(m => (
+        <button key={m.id} className="btn btn-sm" style={{ textAlign: 'left', justifyContent: 'flex-start' }} onClick={() => { setOwn(m.own); setAgent(m.agent || ''); setAgentAmt(m.agentAmount != null ? String(m.agentAmount) : ''); setDeal(m.label) }}>
+          From your CRM: {m.label} · {m.agent || 'agent ?'} · {m.date ? fmtDay(m.date) : ''}{m.agentAmount != null ? ` · agent ${$(m.agentAmount)}` : ''} — use this?
+        </button>
+      ))}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span className="text-xs text-muted">Quick split:</span>
+        <button className="btn btn-sm" onClick={() => pct(90)}>Agent 90 / RLC 10</button>
+        <button className="btn btn-sm" onClick={() => pct(80)}>80 / 20</button>
+        <button className="btn btn-sm" onClick={() => pct(70)}>70 / 30</button>
+        <button className={`btn btn-sm${own ? ' btn-primary' : ''}`} onClick={() => setOwn(o => !o)}>My own deal</button>
+      </div>
+      {!own && (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <input list="fin-agents" placeholder="Agent" value={agent} onChange={e => setAgent(e.target.value)} style={{ ...box, width: 150 }} />
+          <input type="number" placeholder="Agent's portion $" value={agentAmt} onChange={e => setAgentAmt(e.target.value)} style={{ ...box, width: 130 }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="number" placeholder="Transaction fee $ (optional)" value={fee} onChange={e => setFee(e.target.value)} style={{ ...box, width: 190 }} />
+        <input placeholder="Deal / property (optional)" value={deal} onChange={e => setDeal(e.target.value)} style={{ ...box, width: 190 }} />
+      </div>
+      <div className="text-xs">
+        {own ? <>Your production: <strong>{$(gross - fz, true)}</strong></> : <>Owed to {agent || 'agent'}: <strong>{$(a, true)}</strong> · RLC keeps: <strong style={{ color: rest < 0 ? 'var(--red)' : undefined }}>{$(rest, true)}</strong></>}
+        {fz ? <> · fee {$(fz, true)}</> : null}
+        <button className="btn btn-sm btn-primary" style={{ marginLeft: 8 }} disabled={busy || rest < 0 || (!own && (!agent.trim() || !a))} onClick={save}>Save split</button>
+      </div>
+    </div>
   )
 }
 
@@ -335,7 +488,7 @@ function Transactions({ f, txns, scope, months, catNames }) {
         <input placeholder="Search…" value={q.text} onChange={e => setQ({ ...q, text: e.target.value })} style={{ ...sel, width: 160 }} />
         <select value={q.month} onChange={e => setQ({ ...q, month: e.target.value })} style={sel}><option value="">All months</option>{[...months].reverse().map(m => <option key={m} value={m}>{monthName(m, true)}</option>)}</select>
         <select value={q.account} onChange={e => setQ({ ...q, account: e.target.value })} style={sel}><option value="">All accounts</option>{f.accounts.filter(a => !a.excluded).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
-        <select value={q.kind} onChange={e => setQ({ ...q, kind: e.target.value })} style={sel}><option value="">All types</option>{KINDS.map(k => <option key={k}>{k}</option>)}</select>
+        <select value={q.kind} onChange={e => setQ({ ...q, kind: e.target.value })} style={sel}><option value="">All types</option>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select>
         <select value={q.category} onChange={e => setQ({ ...q, category: e.target.value })} style={sel}><option value="">All categories</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
         <span className="text-xs text-muted">{rows.length} · net {$(total, true)}</span>
       </div>
@@ -347,7 +500,7 @@ function Transactions({ f, txns, scope, months, catNames }) {
               <td className="text-sm" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
               <td className="text-sm">{t.merchant}{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
               <td className="text-xs text-muted">{acct[t.account_id]}</td>
-              <td><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k}>{k}</option>)}</select></td>
+              <td><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select></td>
               <td><select value={t.category || ''} onChange={e => f.updateTxns([t.id], { category: e.target.value || null, status: 'ok', review_reason: null })} style={sel}><option value="">—</option>{catNames.map(c => <option key={c}>{c}</option>)}</select></td>
               <td><select value={t.scope || 'personal'} onChange={e => f.updateTxns([t.id], { scope: e.target.value })} style={sel}><option value="personal">P</option><option value="business">B</option></select></td>
               <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap' }}>{$(t.amount, true)}</td>
@@ -443,12 +596,12 @@ function Accounts({ f, txns, fresh }) {
           <thead><tr><th>Account</th><th>Data through</th><th>Months checked</th><th className="text-right">Balance</th><th>Set balance</th></tr></thead>
           <tbody>
             {f.accounts.map(a => {
-              const b = balances.find(x => x.id === a.id), s = st(a.id), ok = s.filter(x => x.status === 'reconciled').length
+              const b = balances.find(x => x.id === a.id), s = st(a.id), ok = s.filter(x => x.status === 'reconciled' || x.status === 'derived').length, derived = s.some(x => x.status === 'derived')
               return (
                 <tr key={a.id} style={a.excluded ? { opacity: 0.55 } : undefined}>
                   <td className="text-sm"><strong>{a.name}</strong><div className="text-xs text-muted">{a.excluded ? 'Excluded from all reporting' : `${a.scope === 'business' ? 'Business' : 'Personal'} · ${a.type?.replace('_', ' ')}`}</div></td>
                   <td className="text-sm">{fresh.per[a.id] ? fmtDay(fresh.per[a.id]) : <span className="text-muted">no statements</span>}</td>
-                  <td className="text-sm">{s.length ? <span style={{ color: ok === s.length ? 'var(--green)' : 'var(--amber)' }}>{ok}/{s.length} balanced</span> : <span className="text-muted">{a.type === 'credit_card' || a.excluded ? '—' : 'needs PDF statements'}</span>}</td>
+                  <td className="text-sm">{s.length ? <><span style={{ color: ok === s.length ? 'var(--green)' : 'var(--amber)' }}>{ok}/{s.length} {derived ? 'worked back from your balance' : 'balanced'}</span>{s.some(x => x.status === 'off') && <div className="text-xs" style={{ color: '#b45309' }}>dips below $0 in {s.filter(x => x.status === 'off').map(x => monthName(x.id.slice(-7))).join(', ')} — a transaction may be missing</div>}</> : <span className="text-muted">{a.type === 'credit_card' || a.excluded ? '—' : 'needs PDF statements'}</span>}</td>
                   <td className="text-right text-sm">{b?.balance != null ? <>{$(b.balance, true)}<div className="text-xs text-muted">{b.from === 'bank' ? 'from bank file' : 'entered'} · {fmtDay(b.asOf)}</div></> : '—'}</td>
                   <td>{!a.excluded && (
                     <span style={{ display: 'flex', gap: 4 }}>

@@ -68,7 +68,7 @@ for (const file of csvs) {
     all.set(ids[i], {
       id: ids[i], account_id: account.id, date: row.date, amount: row.amount, description: row.description,
       merchant: merchantOf(row), kind: c.kind, category: c.category, scope: c.scope, status: c.status, review_reason: c.review_reason,
-      transfer_id: null, recurring_key: null, source: path.basename(file), bank_category: row.bankCategory || null, balance_after: row.balance,
+      counterparty: c.counterparty || null, transfer_id: null, recurring_key: null, source: path.basename(file), bank_category: row.bankCategory || null, balance_after: row.balance,
       _wallet: !!c.wallet,
     })
   })
@@ -123,20 +123,45 @@ for (const [accountId, rows] of byAccountRows) {
 }
 if (pdfs.length) say(`\nPDF statements found: ${pdfs.length} (used for month-end balance checks)`)
 
+// Accounts without a running balance (NFCU): work month-end balances back from the balance you gave
+let anchors = {}
+try { anchors = (await api('GET', 'fin_meta', null, { query: '?key=eq.balances&select=value' }))?.[0]?.value || {} } catch {}
+for (const a of ACCOUNTS.filter(a => !a.excluded && anchors[a.id] && !statements.some(s => s.account_id === a.id))) {
+  const t = txns.filter(x => x.account_id === a.id)
+  if (!t.length) continue
+  const anchor = anchors[a.id]
+  const ms = [...new Set(t.map(x => x.date.slice(0, 7)))].sort()
+  const after = end => t.filter(x => x.date > end && x.date <= anchor.date).reduce((s, x) => s + x.amount, 0)
+  let low = null
+  for (const m of ms) {
+    const inMonth = t.filter(x => x.date.startsWith(m))
+    const end = inMonth.map(x => x.date).sort().at(-1)
+    const close = Math.round((anchor.amount - after(end)) * 100) / 100
+    const open = Math.round((close - inMonth.reduce((s, x) => s + x.amount, 0)) * 100) / 100
+    if (low === null || Math.min(open, close) < low.v) low = { m, v: Math.min(open, close) }
+    statements.push({ id: `${a.id}-${m}`, account_id: a.id, period_start: inMonth.map(x => x.date).sort()[0], period_end: end,
+      opening_balance: open, closing_balance: close, computed_closing: close, status: Math.min(open, close) < -50 ? 'off' : 'derived',
+      file_name: `worked back from your ${anchor.date} balance` })
+  }
+  say(`${a.name}: balances worked back from ${fmt(anchor.amount)} on ${anchor.date}${low && low.v < -50 ? ` — goes negative in ${low.m} (${fmt(low.v)}), so a transaction may be missing` : ' ✓'}`)
+}
+
 if (DRY) { console.log('\nDry run — nothing saved.'); process.exit(0) }
 
 // ── Save ─────────────────────────────────────────────────────────────────────
 await api('POST', 'fin_accounts', ACCOUNTS.map(({ id, name, institution, type, last4, scope, sort, excluded }) => ({ id, name, institution, type, last4, scope, sort, excluded: !!excluded })), { prefer: 'resolution=ignore-duplicates,return=minimal' })
 const rows = txns.map(({ _wallet, ...t }) => t)
 for (let i = 0; i < rows.length; i += 400) await api('POST', 'fin_transactions', rows.slice(i, i + 400), { prefer: 'resolution=ignore-duplicates,return=minimal' })
-// Rows that were already saved may gain a transfer match now that the other side exists
-const existing = await api('GET', 'fin_transactions', null, { query: '?select=id,transfer_id,status,kind,category&limit=20000' })
-const now = new Map(existing.map(r => [r.id, r]))
-for (const t of rows.filter(t => t.transfer_id)) {
-  const e = now.get(t.id)
-  if (e && !e.transfer_id && (e.status === 'review' || e.kind === 'transfer'))
-    await api('PATCH', 'fin_transactions', { transfer_id: t.transfer_id, kind: 'transfer', status: 'ok', review_reason: null, category: e.kind === 'transfer' ? e.category : t.category }, { query: `?id=eq.${t.id}`, prefer: 'return=minimal' })
+// Rows already saved: re-apply the latest rules — but only to rows you haven't touched in the app
+const existing = await api('GET', 'fin_transactions', null, { query: '?select=id,created_at,updated_at&limit=20000' })
+const untouched = new Set(existing.filter(r => Date.parse(r.updated_at) - Date.parse(r.created_at) < 2000).map(r => r.id))
+const FIELDS = ['kind', 'category', 'scope', 'status', 'review_reason', 'counterparty', 'transfer_id', 'merchant']
+let updated = 0
+for (const t of rows.filter(t => untouched.has(t.id))) {
+  await api('PATCH', 'fin_transactions', Object.fromEntries(FIELDS.map(k => [k, t[k] ?? null])), { query: `?id=eq.${t.id}`, prefer: 'return=minimal' })
+  updated++
 }
+if (updated) console.log(`Re-checked ${updated} untouched transactions against the latest rules.`)
 if (statements.length) await api('POST', 'fin_statements', statements, { prefer: 'resolution=merge-duplicates,return=minimal' })
 await api('POST', 'fin_meta', [{ key: 'last_import', value: { at: new Date().toISOString(), through: txns.map(t => t.date).sort().at(-1), report: lines.join('\n') } }], { prefer: 'resolution=merge-duplicates,return=minimal' })
 console.log(`\nSaved: ${rows.length} transactions checked, ${statements.length} statement months.`)

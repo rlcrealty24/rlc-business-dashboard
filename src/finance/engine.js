@@ -113,7 +113,21 @@ const BANK_CATEGORY = {
 /**
  * Classify one row → { kind, category, scope, status, review_reason }
  * kind: income | expense | refund | transfer
+ *   business-only: commission_in (gross commission deposit — revenue only once split),
+ *   agent_payout (pays down what's owed to an agent — never an expense),
+ *   owner_draw / owner_contribution (you ↔ RLC — never revenue, expense or new earnings),
+ *   reimbursement (money paying back a cost — not income)
  */
+export const KIND_LABELS = {
+  income: 'Income', expense: 'Expense', refund: 'Refund', transfer: 'Transfer (own accounts)',
+  commission_in: 'Commission deposit (gross)', agent_payout: 'Agent payout', owner_draw: 'Owner draw (RLC → you)',
+  owner_contribution: 'Owner contribution (you → RLC)', reimbursement: 'Reimbursement',
+}
+/** Payee/payer name from a Truist Zelle line: "ARMANDO PAYMENT ID …" → "Armando" */
+export function counterpartyOf(desc) {
+  const m = String(desc || '').match(/^(.+?) PAYMENT ID/i)
+  return m ? m[1].trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase()) : null
+}
 export function classify(row, account, { categories, rules = [] }) {
   const d = row.description.toLowerCase()
   const catKind = name => categories.find(c => c.name === name)?.kind
@@ -128,20 +142,38 @@ export function classify(row, account, { categories, rules = [] }) {
   const rule = rules.find(r => r.match && d.includes(r.match.toLowerCase()))
   if (rule) return out(rule.kind || (row.amount > 0 ? 'income' : 'expense'), rule.category, rule.scope ? { scope: rule.scope } : {})
 
-  // 2. Money moving between your own accounts
+  // 2. You ↔ RLC (owner draws and contributions) — never revenue, expense or new earnings
+  const isMe = /royanna|royanba|nfcu personal/.test(d)
+  if (account.scope === 'business' && isMe) {
+    if (row.amount < 0) return out('owner_draw', 'Owner Draw/Personal Use', { scope: 'business' })
+    if (/reversal/.test(d)) return out('owner_draw', 'Owner Draw/Personal Use', { scope: 'business', review_reason: null })   // a draw that bounced back
+    return out('owner_contribution', 'Owner contribution to RLC', { scope: 'business' })
+  }
+  if (account.scope !== 'business' && /cash app\W*royanna/.test(d)) return out('transfer', 'Wallet transfer', { wallet: true })
+
+  // 3. Money moving between your own accounts
   const ownLast4 = (d.match(/-(\d{4})\b/) || [])[1]
   if (/transfer (to|from) credit card/.test(d)) return out('transfer', 'Credit Card Payment')
   if (/transfer (to|from) (checking|savings|shares)/.test(d) && (!ownLast4 || OWN_LAST4.includes(ownLast4)) && !/tfr (fr|to) other|trf to other/.test(d))
     return out('transfer', /saving/.test(d) ? 'Personal Savings' : 'Transfer')
-  if (/royanna.*(nfcu|personal)|nfcu personal|royanna mora|royanba/.test(d) && !/reversal/.test(d))
-    return out('transfer', 'Owner Draw/Personal Use', { scope: 'business' })
   const m = (row.merchantHint || '').toLowerCase()
   if (/(apple cash|cash app|paypal|venmo)/.test(d) && (/transfer|instant|add money|cash out|deposit/.test(d) || /^(apple cash|cash app|paypal|venmo)$/.test(m || d.trim())))
     return out('transfer', 'Wallet transfer', { wallet: true })
   if (/^cash app \w/.test(m || d)) return review(row.amount > 0 ? 'income' : 'expense', null, row.amount > 0 ? 'Cash App received — who from, and what for?' : 'Cash App payment to a person — what for?')
   if (/reversal|claims adj/.test(d) && row.amount > 0) return out('refund', 'Other Refund / Credit')
 
-  // 3. Zelle — people, not stores: needs you to say what it was
+  // 4. Business account: commissions in, agents paid out — split/confirm, never assume
+  if (account.scope === 'business') {
+    const who = counterpartyOf(row.description)
+    if (row.amount > 0 && (/^(mobile )?deposit\b|wire|amli|wynd|westminster|yardi|residential|apartment|coupa|realpage|entrata|title|closing|escrow/.test(d) || /deposit/i.test(row.bankType || '')))
+      return review('commission_in', 'Commission Income', 'Commission deposit — split it between agent, RLC and you', { scope: 'business' })
+    if (row.amount > 0 && who) return review('income', null, 'Zelle received on Truist — commission, agent fee or reimbursement?', { scope: 'business', counterparty: who })
+    if (row.amount < 0 && who) return review('agent_payout', 'Agent Commission', 'Paid out from Truist — agent commission payout?', { scope: 'business', counterparty: who })
+    if (row.amount < 0 && /bus online ach settlement/.test(d)) return review('agent_payout', 'Agent Commission', 'ACH batch — which agent(s) was this paid to?', { scope: 'business' })
+    if (row.amount < 0 && /return deposit item|returned item/.test(d)) return review('commission_in', 'Commission Income', 'A deposited check came back — which deposit was it?', { scope: 'business' })
+  }
+
+  // 5. Zelle — people, not stores: needs you to say what it was
   if (/zelle/.test(d)) {
     if (row.amount > 0) return review('income', null, 'Zelle received — who from, and what for?')
     return review('expense', null, 'Zelle sent — who to, and what for?', account.scope === 'business' ? { scope: 'business' } : {})
@@ -155,9 +187,7 @@ export function classify(row, account, { categories, rules = [] }) {
       return out('refund', matchVendor(row.description, [], {}, categories)?.cat?.name || 'Other Refund / Credit')
     if (/investment income|dividend/.test(row.bankCategory.toLowerCase()) || /dividend/.test(d)) return out('income', 'Other Income', { scope: 'personal' })
     if (/paycheck|salary|payroll/.test(row.bankCategory.toLowerCase() + d)) return out('income', 'Personal Income / Salary', { scope: 'personal' })
-    if (/amli|wynd|westminster|yardi|residential|apartment|apts|properties|property mgmt|management|realpage|entrata/.test(d + ' ' + (row.merchantHint || '').toLowerCase()))
-      return out('income', 'Commission Income', { scope: 'business' })
-    if (account.scope === 'business') return review('income', 'Commission Income', 'Business deposit — commission, fee or something else?')
+    if (account.scope === 'business') return review('income', null, 'Business deposit — what was this?')
     return review('income', 'Other Income', 'Money in — what was this?')
   }
 
@@ -168,7 +198,6 @@ export function classify(row, account, { categories, rules = [] }) {
   if (vendor) return out('expense', vendor)
   if (/realtor association|board of realtors|mls/.test(d)) return out('expense', 'MLS Dues', { scope: 'business' })
   if (/regulatory|sunbiz|dbpr|division of real estate|license/.test(d)) return out('expense', 'Licenses & Permits', { scope: 'business' })
-  if (/bus online ach settlement/.test(d)) return review('expense', null, 'Business ACH payment — what is this?', { scope: 'business' })
   const bank = BANK_CATEGORY[(row.bankCategory || '').toLowerCase()]
   if (bank) {
     const r = out('expense', bank)
@@ -181,14 +210,22 @@ export function classify(row, account, { categories, rules = [] }) {
 /** Match money leaving one of your accounts with the same amount arriving in another within 4 days */
 export function pairTransfers(txns) {
   const days = (a, b) => Math.abs(Date.parse(a) - Date.parse(b)) / 864e5
-  const open = txns.filter(t => !t.transfer_id && (t.kind === 'transfer' || /zelle/i.test(t.description)))
+  const OWNER = ['owner_draw', 'owner_contribution']
+  const open = txns.filter(t => !t.transfer_id && (t.kind === 'transfer' || OWNER.includes(t.kind) || /zelle/i.test(t.description)))
   const used = new Set()
   for (const out of open.filter(t => t.amount < 0)) {
     const match = open.find(t => t.amount > 0 && !used.has(t.id) && t.account_id !== out.account_id && Math.abs(t.amount + out.amount) < 0.005 && days(t.date, out.date) <= 4)
     if (!match) continue
     used.add(match.id); used.add(out.id)
     const id = `tr-${out.id.slice(0, 10)}`
-    for (const t of [out, match]) Object.assign(t, { transfer_id: id, kind: 'transfer', status: 'ok', review_reason: null, category: t.category && t.kind === 'transfer' ? t.category : 'Transfer' })
+    const owner = [out, match].find(t => OWNER.includes(t.kind))?.kind
+    for (const t of [out, match]) {
+      if (OWNER.includes(t.kind)) Object.assign(t, { transfer_id: id, status: 'ok', review_reason: null })
+      else Object.assign(t, {
+        transfer_id: id, kind: 'transfer', status: 'ok', review_reason: null,
+        category: owner === 'owner_draw' ? 'Owner draw from RLC' : owner === 'owner_contribution' ? 'Owner contribution to RLC' : (t.kind === 'transfer' && t.category) || 'Transfer',
+      })
+    }
   }
   return txns
 }

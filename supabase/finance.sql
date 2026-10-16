@@ -61,3 +61,8 @@ end $$;
 insert into fin_device_keys (key_hash, label)
 values ('a7208da68548e3aaf8e225c1271e10c7bbb3feaf910e127d5033062e83e88b8e', 'Royanna')
 on conflict do nothing;
+
+-- 2026-10-16: commission accounting (splits = [{part, amount, agent, deal_ref}])
+alter table fin_transactions add column if not exists splits jsonb;
+alter table fin_transactions add column if not exists counterparty text;
+alter table fin_transactions add column if not exists deal_ref text;
