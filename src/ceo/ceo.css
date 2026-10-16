@@ -18,8 +18,8 @@
 .c-btn:disabled { opacity: .45; cursor: default; }
 .c-btn-sky { background: var(--sky); border-color: var(--sky); color: var(--ink); }
 .c-btn-sky:hover { background: var(--sky-deep); border-color: var(--sky-deep); color: var(--ink); }
-.c-btn-ink { background: var(--ink); color: #fff; }
-.c-btn-ink:hover { background: var(--charcoal); }
+.c-btn-ink { background: var(--sky-deep); border-color: var(--sky-deep); color: #fff; }
+.c-btn-ink:hover { background: #157fa8; border-color: #157fa8; color: #fff; }
 .c-btn-ghost { border-color: transparent; background: transparent; color: var(--mid); }
 .c-btn-ghost:hover { background: var(--mist); color: var(--ink); }
 .c-btn-danger { border-color: #f1c4c4; color: var(--red); }
@@ -34,7 +34,8 @@
 .c-card-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .c-card-title { font-family: var(--serif); font-size: 19px; font-weight: 400; }
 .c-card-body { padding: 16px 20px; }
-.c-card.ink { background: var(--ink); border-color: var(--ink); color: #fff; }
+/* 'ink' = the highlighted card: a soft sky wash, not black */
+.c-card.ink { background: linear-gradient(135deg, #e6f6fd 0%, #f5fbfe 70%, #fff 100%); border-color: #bfe6f7; color: var(--ink); }
 
 /* Grid */
 .c-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
@@ -58,7 +59,7 @@
 /* Chips / tags */
 .c-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; font-size: 10px; font-weight: 600; letter-spacing: .1em;
   text-transform: uppercase; border: 1px solid var(--border); background: #fff; color: var(--mid); white-space: nowrap; }
-.c-chip.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.c-chip.on { background: var(--sky-deep); color: #fff; border-color: var(--sky-deep); }
 .c-chip.sky { background: var(--sky-soft); border-color: #bfe8f8; color: var(--sky-deep); }
 .c-chip.warn { background: #fffbeb; border-color: #fde68a; color: #b45309; }
 .c-chip.red { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
@@ -75,20 +76,20 @@ button.c-chip { cursor: pointer; }
 .c-box { width: 18px; height: 18px; border: 1.5px solid var(--ink); flex-shrink: 0; margin-top: 1px; display: flex; align-items: center; justify-content: center; background: #fff; }
 .c-check.done .c-box { background: var(--sky); border-color: var(--sky); }
 .c-check.done .c-check-text { color: var(--light); text-decoration: line-through; }
-.ink .c-check { border-bottom-color: rgba(255,255,255,.12); }
-.ink .c-box { border-color: #fff; background: transparent; }
-.ink .c-check.done .c-check-text { color: rgba(255,255,255,.4); }
+.ink .c-check { border-bottom-color: rgba(28,159,208,.15); }
+.ink .c-box { border-color: var(--sky-deep); background: #fff; }
+.ink .c-check.done .c-check-text { color: var(--light); }
 
 /* Progress */
 .c-progress { height: 4px; background: var(--border); overflow: hidden; }
 .c-progress > div { height: 100%; background: var(--sky); transition: width .3s; }
-.ink .c-progress { background: rgba(255,255,255,.15); }
+.ink .c-progress { background: rgba(28,159,208,.15); }
 
 /* NOW card */
 .c-now { position: relative; padding: 26px 28px; }
-.c-now-time { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--sky); }
+.c-now-time { font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--sky-deep); font-weight: 600; }
 .c-now-title { font-family: var(--serif); font-size: 30px; line-height: 1.15; margin: 10px 0 6px; }
-.c-now-desc { font-size: 13px; color: rgba(255,255,255,.65); line-height: 1.55; white-space: pre-wrap; }
+.c-now-desc { font-size: 13px; color: var(--mid); line-height: 1.55; white-space: pre-wrap; }
 .c-now-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
 
 /* Timeline */
@@ -119,7 +120,7 @@ button.c-chip { cursor: pointer; }
 .c-seg { display: inline-flex; border: 1px solid var(--ink); }
 .c-seg button { padding: 9px 14px; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; border: 0; background: #fff; cursor: pointer; font-family: var(--sans); }
 .c-seg button + button { border-left: 1px solid var(--ink); }
-.c-seg button.on { background: var(--ink); color: #fff; }
+.c-seg button.on { background: var(--sky-deep); color: #fff; }
 .c-cal { background: #fff; border: 1px solid var(--border); overflow: hidden; }
 .c-cal-head { display: grid; border-bottom: 1px solid var(--ink); }
 .c-cal-dayhead { padding: 10px 8px; text-align: center; border-left: 1px solid var(--border); cursor: pointer; }

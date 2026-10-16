@@ -33,9 +33,9 @@ export function StarterCard() {
   return (
     <div className="c-card ink">
       <div className="c-card-body" style={{ padding: 28 }}>
-        <div className="c-eyebrow" style={{ color: 'var(--sky)' }}>Start here</div>
+        <div className="c-eyebrow">Start here</div>
         <div className="c-serif" style={{ fontSize: 28, margin: '8px 0 10px' }}>Load your operating schedule</div>
-        <p style={{ fontSize: 14, color: 'rgba(255,255,255,.7)', lineHeight: 1.6, maxWidth: 620 }}>
+        <p style={{ fontSize: 14, color: 'var(--mid)', lineHeight: 1.6, maxWidth: 620 }}>
           Your week, built around Sophia&apos;s routine: morning routine, gym (Mon/Tue/Fri), Baby Bounce &amp; gymnastics,
           nap-time money blocks, agent Zoom training, content planning → filming → editing → scheduling → posting,
           the Friday financial review, Sunday planning, the month-end review and a hard stop every night.

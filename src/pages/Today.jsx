@@ -101,8 +101,8 @@ export default function Today() {
                     {current.status === 'done' ? 'Done ✓ (undo)' : 'Mark done'}
                   </button>
                 )}
-                <button className="c-btn c-btn-sm" style={{ background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.35)' }} onClick={() => setFocus(true)}>Focus mode</button>
-                <button className="c-btn c-btn-sm" style={{ background: 'transparent', color: '#fff', borderColor: 'rgba(255,255,255,.35)' }} onClick={() => setOpenKey(current.key)}>Details</button>
+                <button className="c-btn c-btn-sm" style={{ background: '#fff', borderColor: '#bfe6f7' }} onClick={() => setFocus(true)}>Focus mode</button>
+                <button className="c-btn c-btn-sm" style={{ background: '#fff', borderColor: '#bfe6f7' }} onClick={() => setOpenKey(current.key)}>Details</button>
               </div>
             </> : <>
               <div className="c-now-time">Now · {fmtTime(now)}</div>

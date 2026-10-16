@@ -132,10 +132,10 @@ export default function TaskCoach({ limit = 6 }) {
       {busy && <div className="c-card-body"><div className="c-serif" style={{ fontSize: 18 }}>Sorting your list… {secs}s</div><div className="c-muted" style={{ fontSize: 12, marginTop: 4 }}>Usually under a minute.</div></div>}
 
       {first && !busy && (
-        <div style={{ padding: '16px 20px', background: 'var(--ink)', color: '#fff' }}>
-          <div className="c-eyebrow" style={{ color: 'var(--sky)' }}>Start here{result.first.minutes ? ` · ~${result.first.minutes} min` : ''}</div>
+        <div style={{ padding: '16px 20px', background: 'linear-gradient(135deg, #e6f6fd 0%, #f5fbfe 80%)', borderTop: '1px solid #bfe6f7', borderBottom: '1px solid #bfe6f7', color: 'var(--ink)' }}>
+          <div className="c-eyebrow">Start here{result.first.minutes ? ` · ~${result.first.minutes} min` : ''}</div>
           <div className="c-serif" style={{ fontSize: 22, margin: '6px 0 4px' }}>{first.title}</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,.75)' }}>{result.first.why}</div>
+          <div style={{ fontSize: 13, color: 'var(--mid)' }}>{result.first.why}</div>
           {result.first.first_step && <div style={{ fontSize: 13, marginTop: 8 }}>First step: <strong>{result.first.first_step}</strong></div>}
         </div>
       )}
