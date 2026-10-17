@@ -9,13 +9,30 @@ import { DEFAULT_CATEGORIES } from './vendorMap.js'
 import { KIND_LABELS } from './engine.js'
 import { useCrmCommissions } from './crm.js'
 import { useFinance } from './store.js'
+import { useCeo } from '../ceo/CeoStore.jsx'
 import { agentLedger, brokerage, byCategory, earnedOf, duplicates, findRecurring, freshness, inScope, insights, monthly, months as monthList, recurring, SPEND, topMerchants } from './analytics.js'
 import { CategoriesTab, TaxTab } from '../pages/Finance.jsx'
 
 const C_INCOME = '#2a78d6', C_SPEND = '#eb6834'    // reference palette slots 1 + 2
 const SYSTEM_CATS = ['Transfer', 'Wallet transfer', 'Credit Card Payment', 'Personal Savings', 'Owner Draw/Personal Use']
 const KINDS = Object.keys(KIND_LABELS)
-const START = '2026-01-01'   // reporting (and reconciliation) starts January 2026
+const START = '2026-01-01'
+// Wide tables become stacked cards up to iPad landscape width — no sideways scrolling
+const FIN_CSS = `
+.fin-page .card-header h3 { color: var(--text); font-weight: 700; font-family: var(--sans); letter-spacing: .06em; font-size: 0.82rem; }
+@media (max-width: 1200px) {
+  .fin-table thead { display: none; }
+  .fin-table, .fin-table tbody { display: block; width: 100%; }
+  .fin-table tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; grid-template-areas: "main main amt" "date acct acct" "kind cat scope" "ctl ctl ctl";
+    gap: 6px 10px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .fin-table td { display: block; padding: 0 !important; border: none !important; min-width: 0 !important; white-space: normal !important; }
+  .fin-table td.fa-main { grid-area: main; font-size: 0.9rem; } .fin-table td.fa-amt { grid-area: amt; font-size: 0.95rem; }
+  .fin-table td.fa-date { grid-area: date; color: var(--text-muted); font-size: 0.75rem; } .fin-table td.fa-acct { grid-area: acct; }
+  .fin-table td.fa-kind { grid-area: kind; } .fin-table td.fa-cat { grid-area: cat; } .fin-table td.fa-scope { grid-area: scope; } .fin-table td.fa-ctl { grid-area: ctl; }
+  .fin-table td select, .fin-table td input:not([type=checkbox]) { width: 100% !important; max-width: none !important; }
+  .fin-table td.fa-ctl select, .fin-table td.fa-ctl input:not([type=checkbox]) { width: auto !important; flex: 1 1 140px; }
+  .fin-table td select.fin-flag { width: auto !important; display: inline-block; }
+}`   // reporting (and reconciliation) starts January 2026
 const $ = (n, cents = false) => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 })
 const monthName = (m, long = false) => new Date(`${m}-15T12:00:00`).toLocaleDateString('en-US', { month: long ? 'long' : 'short', year: long ? 'numeric' : '2-digit' })
 const ago = d => Math.round((Date.now() - Date.parse(`${d}T12:00:00`)) / 864e5)
@@ -59,7 +76,7 @@ export default function FinancePage() {
   ]
   return (
     <div className="fin-page">
-      <style>{'.fin-page .card-header h3 { color: var(--text); font-weight: 700; font-family: var(--sans); letter-spacing: .06em; font-size: 0.82rem; }'}</style>
+      <style>{FIN_CSS}</style>
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1>Finance</h1>
@@ -140,6 +157,8 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
           <div className="metric-label">Needs your review</div><div className="metric-value">{review}</div><div className="metric-change neutral">{review ? 'this month · tap to review' : 'all clear this month'}</div>
         </div>
       </div>
+
+      <NeedsAction f={f} txns={txns} />
 
       {scope !== 'personal' && <Brokerage f={f} txns={txns} month={month} goReview={goReview} />}
 
@@ -360,7 +379,7 @@ function Review({ f, txns, catNames, agents, crm }) {
       {groups.map(([reason, list]) => (
         <div key={reason} className="card">
           <div className="card-header"><h3 style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--sans, inherit)', letterSpacing: '0.04em' }}>{reason}</h3><span className="text-xs text-muted">{list.length}</span></div>
-          <div className="table-container"><table><tbody>
+          <div className="table-container"><table className="fin-table"><tbody>
             {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} agents={agents} crm={crm} />)}
           </tbody></table></div>
           {list.length > 50 && <div className="card-body text-xs text-muted">+{list.length - 50} more — rules you save clear many at once.</div>}
@@ -391,11 +410,11 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
   const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution'].includes(d.kind)
   return (
     <tr>
-      <td className="text-sm" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
-      <td className="text-sm" style={{ minWidth: 180, verticalAlign: 'top' }}>{t.counterparty || t.merchant}<div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
-      <td style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
-      <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{$(t.amount, true)}</strong></td>
-      <td style={{ verticalAlign: 'top' }}>
+      <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
+      <td className="text-sm fa-main" style={{ minWidth: 180, verticalAlign: 'top' }}>{t.counterparty || t.merchant}<FlagMenu t={t} f={f} /><div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
+      <td className="fa-acct" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
+      <td className="text-right text-sm fa-amt" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{$(t.amount, true)}</strong></td>
+      <td className="fa-ctl" style={{ verticalAlign: 'top' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={sel}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           {d.kind === 'agent_payout' && <>
@@ -472,12 +491,78 @@ function SplitEditor({ t, agents, crm, busy, onSave }) {
   )
 }
 
+// ─── Flags: "don't recognize" and refunds ────────────────────────────────────
+export const FLAGS = {
+  unknown: { label: 'Don’t recognize', color: '#b45309', bg: '#fffbeb' },
+  refund: { label: 'Request refund', color: '#7c3aed', bg: '#f5f3ff' },
+  refund_requested: { label: 'Refund requested', color: '#2563eb', bg: '#eff6ff' },
+  resolved: { label: 'Resolved', color: '#15803d', bg: '#ecfdf3' },
+}
+
+/** Tag a transaction; "don't recognize" and "request refund" also drop a task in your Inbox */
+function FlagMenu({ t, f }) {
+  const { saveTask } = useCeo()
+  const cur = f.meta.flags?.[t.id]
+  async function set(flag) {
+    const all = { ...(f.meta.flags || {}) }
+    if (!flag) { delete all[t.id]; await f.setMeta('flags', all); return }
+    const entry = { ...(cur || {}), flag, at: new Date().toISOString() }
+    if ((flag === 'unknown' || flag === 'refund') && !cur?.task_id) {
+      const what = `${t.counterparty || t.merchant} ${$(Math.abs(t.amount), true)} on ${fmtDay(t.date)}`
+      try {
+        const task = await saveTask({
+          title: flag === 'refund' ? `Request refund: ${what}` : `Look into charge I don’t recognize: ${what}`,
+          status: 'next', priority: flag === 'refund' ? 'high' : 'medium',
+          notes: `Finance → Transactions (flagged). ${t.description}`,
+        })
+        entry.task_id = task?.id || null
+      } catch {}
+    }
+    await f.setMeta('flags', { ...all, [t.id]: entry })
+  }
+  const style = cur ? { background: FLAGS[cur.flag]?.bg, color: FLAGS[cur.flag]?.color, borderColor: FLAGS[cur.flag]?.color } : {}
+  return (
+    <select className="fin-flag" value={cur?.flag || ''} onChange={e => set(e.target.value)} title="Flag this transaction"
+      style={{ marginLeft: 6, fontSize: '0.7rem', padding: '1px 4px', width: 'auto', maxWidth: 150, ...style }}>
+      <option value="">⚑ Flag…</option>
+      {Object.entries(FLAGS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+      {cur && <option value="">Remove flag</option>}
+    </select>
+  )
+}
+
+/** Dashboard list of flagged transactions that still need something from you */
+function NeedsAction({ f, txns }) {
+  const flags = f.meta.flags || {}
+  const byId = new Map(txns.map(t => [t.id, t]))
+  const open = Object.entries(flags).filter(([, v]) => v.flag !== 'resolved').map(([id, v]) => ({ t: byId.get(id), ...v })).filter(x => x.t)
+    .sort((a, b) => b.t.date.localeCompare(a.t.date))
+  if (!open.length) return null
+  const refundTotal = open.filter(x => x.flag !== 'unknown').reduce((s, x) => s + Math.abs(x.t.amount), 0)
+  return (
+    <div className="card" style={{ borderLeft: '3px solid #7c3aed' }}>
+      <div className="card-header"><h3>Needs action</h3><span className="text-xs text-muted">{open.length} flagged{refundTotal ? ` · ${$(refundTotal, true)} in refunds` : ''}</span></div>
+      <div className="table-container"><table className="fin-table"><tbody>
+        {open.map(({ t, flag }) => (
+          <tr key={t.id}>
+            <td className="text-sm fa-date">{fmtDay(t.date)}</td>
+            <td className="text-sm fa-main">{t.counterparty || t.merchant}<FlagMenu t={t} f={f} /></td>
+            <td className="fa-acct"><span className="badge" style={{ background: FLAGS[flag]?.bg, color: FLAGS[flag]?.color }}>{FLAGS[flag]?.label}</span></td>
+            <td className="text-right text-sm fa-amt"><strong>{$(t.amount, true)}</strong></td>
+          </tr>
+        ))}
+      </tbody></table></div>
+    </div>
+  )
+}
+
 // ─── Transactions ────────────────────────────────────────────────────────────
 function Transactions({ f, txns, scope, months, catNames }) {
-  const [q, setQ] = useState({ month: '', account: '', kind: '', category: '', text: '' })
+  const [q, setQ] = useState({ month: '', account: '', kind: '', category: '', text: '', flag: '' })
   const [limit, setLimit] = useState(150)
   const rows = txns.filter(t => inScope(t, scope) && (!q.month || t.date.startsWith(q.month)) && (!q.account || t.account_id === q.account)
     && (!q.kind || t.kind === q.kind) && (!q.category || t.category === q.category)
+    && (!q.flag || (q.flag === 'any' ? f.meta.flags?.[t.id] : f.meta.flags?.[t.id]?.flag === q.flag))
     && (!q.text || `${t.description} ${t.merchant} ${t.notes || ''}`.toLowerCase().includes(q.text.toLowerCase())))
   const total = rows.reduce((s, t) => s + t.amount, 0)
   const recIds = useMemo(() => new Set([...findRecurring(txns).values()].flat().map(t => t.id)), [txns])
@@ -491,20 +576,21 @@ function Transactions({ f, txns, scope, months, catNames }) {
         <select value={q.account} onChange={e => setQ({ ...q, account: e.target.value })} style={sel}><option value="">All accounts</option>{f.accounts.filter(a => !a.excluded).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
         <select value={q.kind} onChange={e => setQ({ ...q, kind: e.target.value })} style={sel}><option value="">All types</option>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select>
         <select value={q.category} onChange={e => setQ({ ...q, category: e.target.value })} style={sel}><option value="">All categories</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
+        <select value={q.flag} onChange={e => setQ({ ...q, flag: e.target.value })} style={sel}><option value="">Any flag</option><option value="any">Flagged</option>{Object.entries(FLAGS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}</select>
         <span className="text-xs text-muted">{rows.length} · net {$(total, true)}</span>
       </div>
-      <div className="table-container"><table>
+      <div className="table-container"><table className="fin-table">
         <thead><tr><th>Date</th><th>Merchant</th><th>Account</th><th>Type</th><th>Category</th><th>P/B</th><th className="text-right">Amount</th></tr></thead>
         <tbody>
           {rows.slice(0, limit).map(t => (
             <tr key={t.id}>
-              <td className="text-sm" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
-              <td className="text-sm">{t.merchant}{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
-              <td className="text-xs text-muted">{acct[t.account_id]}</td>
-              <td><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select></td>
-              <td><select value={t.category || ''} onChange={e => f.updateTxns([t.id], { category: e.target.value || null, status: 'ok', review_reason: null })} style={sel}><option value="">—</option>{catNames.map(c => <option key={c}>{c}</option>)}</select></td>
-              <td><select value={t.scope || 'personal'} onChange={e => f.updateTxns([t.id], { scope: e.target.value })} style={sel}><option value="personal">P</option><option value="business">B</option></select></td>
-              <td className="text-right text-sm" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap' }}>{$(t.amount, true)}</td>
+              <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
+              <td className="text-sm fa-main">{t.merchant}<FlagMenu t={t} f={f} />{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
+              <td className="text-xs text-muted fa-acct">{acct[t.account_id]}</td>
+              <td className="fa-kind"><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select></td>
+              <td className="fa-cat"><select value={t.category || ''} onChange={e => f.updateTxns([t.id], { category: e.target.value || null, status: 'ok', review_reason: null })} style={sel}><option value="">—</option>{catNames.map(c => <option key={c}>{c}</option>)}</select></td>
+              <td className="fa-scope"><select value={t.scope || 'personal'} onChange={e => f.updateTxns([t.id], { scope: e.target.value })} style={sel}><option value="personal">Personal</option><option value="business">Business</option></select></td>
+              <td className="text-right text-sm fa-amt" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap' }}><strong>{$(t.amount, true)}</strong></td>
             </tr>
           ))}
         </tbody>
