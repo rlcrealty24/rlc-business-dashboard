@@ -15,6 +15,7 @@ import { CategoriesTab, TaxTab } from '../pages/Finance.jsx'
 
 const C_INCOME = '#2a78d6', C_SPEND = '#eb6834'    // reference palette slots 1 + 2
 const SYSTEM_CATS = ['Transfer', 'Wallet transfer', 'Credit Card Payment', 'Personal Savings', 'Owner Draw/Personal Use']
+const ACQ_CATS = ['Hard money loan payment', 'Property purchase / deposit', 'Rehab / construction', 'Closing costs', 'Other acquisition cost']
 const KINDS = Object.keys(KIND_LABELS)
 const START = '2026-01-01'
 // Wide tables become stacked cards up to iPad landscape width — no sideways scrolling
@@ -56,7 +57,7 @@ export default function FinancePage() {
   const review = live.filter(t => t.status === 'review')
   const crm = useCrmCommissions()
   const agentNames = useMemo(() => [...new Set([...crm.agents, ...f.txns.filter(t => t.kind === 'agent_payout' && t.counterparty).map(t => t.counterparty)])].sort(), [crm.agents, f.txns])
-  const catNames = useMemo(() => [...new Set([...(categories || []).map(c => c.name), ...SYSTEM_CATS])].sort(), [categories])
+  const catNames = useMemo(() => [...new Set([...(categories || []).map(c => c.name), ...SYSTEM_CATS, ...ACQ_CATS])].sort(), [categories])
 
   if (f.loading) return <div className="page-header"><h1>Finance</h1><p>Loading your accounts…</p></div>
   if (f.noKey) return (
@@ -268,6 +269,7 @@ function Brokerage({ f, txns, month, goReview }) {
     ['Paid out to agents', 'payouts', true],
     ['Owner draws (RLC → you)', 'draws', true],
     ['Owner contributions (you → RLC)', 'contributions', false],
+    ['Acquisitions & investments (loans, properties — not brokerage costs)', 'acquisitions', true],
   ]
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, alignItems: 'start' }}>
@@ -390,7 +392,7 @@ function Review({ f, txns, catNames, agents, crm }) {
 }
 
 function ReviewRow({ t, f, catNames, account, agents, crm }) {
-  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '' })
+  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '', deal: t.deal_ref || '' })
   const [busy, setBusy] = useState(false)
   const sel = { fontSize: '0.78rem', padding: '4px 6px', width: 'auto' }
   const done = async patch => { setBusy(true); try { await f.updateTxns([t.id], { status: 'ok', review_reason: null, ...patch }) } finally { setBusy(false) } }
@@ -407,7 +409,7 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
       } else await f.updateTxns([t.id], patch)
     } finally { setBusy(false) }
   }
-  const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution'].includes(d.kind)
+  const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution', 'acquisition'].includes(d.kind)
   return (
     <tr>
       <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
@@ -418,8 +420,28 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={sel}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           {d.kind === 'agent_payout' && <>
-            <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 150 }} />
-            <button className="btn btn-sm btn-primary" disabled={busy || !d.agent.trim()} onClick={() => done({ kind: 'agent_payout', category: 'Agent Commission', scope: 'business', counterparty: d.agent.trim(), notes: d.notes || null })}>✓</button>
+            <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 140 }} />
+            <input placeholder="Deal / property" value={d.deal} onChange={e => setD({ ...d, deal: e.target.value })} style={{ ...sel, width: 150 }} />
+            <input placeholder="Memo — what it was for" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 190 }} />
+            <button className="btn btn-sm btn-primary" disabled={busy || !d.agent.trim()} onClick={() => done({ kind: 'agent_payout', category: 'Agent Commission', scope: 'business', counterparty: d.agent.trim(), deal_ref: d.deal.trim() || null, notes: d.notes || null })}>✓</button>
+          </>}
+          {d.kind === 'acquisition' && <>
+            <select value={ACQ_CATS.includes(d.category) ? d.category : ''} onChange={e => setD({ ...d, category: e.target.value })} style={sel}><option value="">What kind…</option>{ACQ_CATS.map(c => <option key={c}>{c}</option>)}</select>
+            <input placeholder="Paid to (lender, seller…)" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 150 }} />
+            <input placeholder="Property / loan (e.g. Jose’s loan)" value={d.deal} onChange={e => setD({ ...d, deal: e.target.value })} style={{ ...sel, width: 180 }} />
+            <input placeholder="Memo" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 150 }} />
+            <label className="text-xs" style={{ display: 'flex', gap: 3, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
+              <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} /> Always for this payee
+            </label>
+            <button className="btn btn-sm btn-primary" disabled={busy || !d.category} onClick={async () => {
+              const patch = { kind: 'acquisition', category: d.category, scope: 'business', counterparty: d.agent.trim() || t.counterparty || null, deal_ref: d.deal.trim() || null, notes: d.notes || null }
+              if (d.always && d.match.trim()) {
+                await f.addRule({ match: d.match, category: d.category, scope: 'business', kind: 'acquisition' })
+                const ids = f.txns.filter(x => x.status === 'review' && x.description.toLowerCase().includes(d.match.trim().toLowerCase())).map(x => x.id)
+                await f.updateTxns([...new Set([t.id, ...ids])], { kind: 'acquisition', category: d.category, scope: 'business', deal_ref: patch.deal_ref, counterparty: patch.counterparty, status: 'ok', review_reason: null })
+                if (d.notes) await f.updateTxns([t.id], { notes: d.notes })
+              } else await done(patch)
+            }}>✓</button>
           </>}
           {['owner_draw', 'owner_contribution', 'transfer'].includes(d.kind) && (
             <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: d.kind, category: d.kind === 'owner_draw' ? 'Owner Draw/Personal Use' : d.kind === 'owner_contribution' ? 'Owner contribution to RLC' : 'Transfer', notes: d.notes || null })}>✓</button>
@@ -585,7 +607,7 @@ function Transactions({ f, txns, scope, months, catNames }) {
           {rows.slice(0, limit).map(t => (
             <tr key={t.id}>
               <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
-              <td className="text-sm fa-main">{t.merchant}<FlagMenu t={t} f={f} />{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
+              <td className="text-sm fa-main">{t.counterparty || t.merchant}<FlagMenu t={t} f={f} />{t.deal_ref && <div className="text-xs" style={{ color: '#4338ca' }}>{t.deal_ref}</div>}{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
               <td className="text-xs text-muted fa-acct">{acct[t.account_id]}</td>
               <td className="fa-kind"><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select></td>
               <td className="fa-cat"><select value={t.category || ''} onChange={e => f.updateTxns([t.id], { category: e.target.value || null, status: 'ok', review_reason: null })} style={sel}><option value="">—</option>{catNames.map(c => <option key={c}>{c}</option>)}</select></td>

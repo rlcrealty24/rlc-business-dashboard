@@ -154,7 +154,7 @@ export function insights({ txns, scope, month, budgets }) {
 /** Commission accounting for a period: gross in, owed to agents, earned by RLC, your production, costs, draws */
 export function brokerage(txns, from, to) {
   const inP = t => t.date >= from && t.date <= to && t.scope === 'business'
-  const r = { gross: 0, agentPortion: 0, rlcEarned: 0, fees: 0, own: 0, otherIncome: 0, unsplit: 0, unsplitCount: 0, payouts: 0, opex: 0, draws: 0, contributions: 0 }
+  const r = { gross: 0, agentPortion: 0, rlcEarned: 0, fees: 0, own: 0, otherIncome: 0, unsplit: 0, unsplitCount: 0, payouts: 0, opex: 0, draws: 0, contributions: 0, acquisitions: 0 }
   for (const t of txns.filter(inP)) {
     if (t.kind === 'commission_in') {
       r.gross += t.amount
@@ -165,6 +165,7 @@ export function brokerage(txns, from, to) {
     else if (SPEND(t)) r.opex -= t.amount
     else if (t.kind === 'owner_draw') r.draws -= t.amount
     else if (t.kind === 'owner_contribution') r.contributions += t.amount
+    else if (t.kind === 'acquisition') r.acquisitions -= t.amount
   }
   for (const k of Object.keys(r)) r[k] = r2(r[k])
   r.revenue = r2(r.rlcEarned + r.fees + r.otherIncome)

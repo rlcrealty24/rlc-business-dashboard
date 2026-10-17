@@ -116,12 +116,14 @@ const BANK_CATEGORY = {
  *   business-only: commission_in (gross commission deposit — revenue only once split),
  *   agent_payout (pays down what's owed to an agent — never an expense),
  *   owner_draw / owner_contribution (you ↔ RLC — never revenue, expense or new earnings),
- *   reimbursement (money paying back a cost — not income)
+ *   reimbursement (money paying back a cost — not income),
+ *   acquisition (property / loan / rehab money — tracked apart from brokerage costs and everyday spending)
  */
 export const KIND_LABELS = {
   income: 'Income', expense: 'Expense', refund: 'Refund', transfer: 'Transfer (own accounts)',
   commission_in: 'Commission deposit (gross)', agent_payout: 'Agent payout', owner_draw: 'Owner draw (RLC → you)',
   owner_contribution: 'Owner contribution (you → RLC)', reimbursement: 'Reimbursement',
+  acquisition: 'Acquisition / investment (loans, properties)',
 }
 /** Payee/payer name from a Truist Zelle line: "ARMANDO PAYMENT ID …" → "Armando" */
 export function counterpartyOf(desc) {
