@@ -20,6 +20,12 @@ const KINDS = Object.keys(KIND_LABELS)
 const START = '2026-01-01'
 // Wide tables become stacked cards up to iPad landscape width — no sideways scrolling
 const FIN_CSS = `
+.fin-table td.fa-ctl select { max-width: 170px; } .fin-table td.fa-ctl input:not([type=checkbox]) { max-width: 140px; }
+@media (min-width: 1201px) {
+  .fin-table td.fa-ctl > div { flex-wrap: nowrap !important; }
+  .fin-table td.fa-main { max-width: 200px; min-width: 0 !important; }
+  .fin-table td.fa-main > .text-xs { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
 .fin-page .card-header h3 { color: var(--text); font-weight: 700; font-family: var(--sans); letter-spacing: .06em; font-size: 0.82rem; }
 @media (max-width: 1200px) {
   .fin-table thead { display: none; }
@@ -31,7 +37,7 @@ const FIN_CSS = `
   .fin-table td.fa-date { grid-area: date; color: var(--text-muted); font-size: 0.75rem; } .fin-table td.fa-acct { grid-area: acct; }
   .fin-table td.fa-kind { grid-area: kind; } .fin-table td.fa-cat { grid-area: cat; } .fin-table td.fa-scope { grid-area: scope; } .fin-table td.fa-ctl { grid-area: ctl; }
   .fin-table td select, .fin-table td input:not([type=checkbox]) { width: 100% !important; max-width: none !important; }
-  .fin-table td.fa-ctl select, .fin-table td.fa-ctl input:not([type=checkbox]) { width: auto !important; flex: 1 1 140px; }
+  .fin-table td.fa-ctl select, .fin-table td.fa-ctl input:not([type=checkbox]) { width: auto !important; flex: 0 1 auto; min-width: 0; max-width: 190px !important; }
   .fin-table td select.fin-flag { width: auto !important; display: inline-block; }
 }`   // reporting (and reconciliation) starts January 2026
 const $ = (n, cents = false) => (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: cents ? 2 : 0, maximumFractionDigits: cents ? 2 : 0 })
@@ -394,6 +400,7 @@ function Review({ f, txns, catNames, agents, crm }) {
 function ReviewRow({ t, f, catNames, account, agents, crm }) {
   const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '', deal: t.deal_ref || '' })
   const [busy, setBusy] = useState(false)
+  const [showNote, setShowNote] = useState(false)
   const sel = { fontSize: '0.78rem', padding: '4px 6px', width: 'auto' }
   const done = async patch => { setBusy(true); try { await f.updateTxns([t.id], { status: 'ok', review_reason: null, ...patch }) } finally { setBusy(false) } }
 
@@ -413,16 +420,16 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
   return (
     <tr>
       <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
-      <td className="text-sm fa-main" style={{ minWidth: 180, verticalAlign: 'top' }}>{t.counterparty || t.merchant}<FlagMenu t={t} f={f} /><div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div></td>
-      <td className="fa-acct" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.68rem' }}>{account.name}</span>}</td>
+      <td className="text-sm fa-main" style={{ minWidth: 150, verticalAlign: 'top' }}>{t.counterparty || t.merchant}<FlagMenu t={t} f={f} /><div className="text-xs text-muted" title={t.description}>{t.description.slice(0, 60)}</div>
+        {account && <span className="badge" style={{ background: account.scope === 'business' ? '#eef2ff' : '#ecfdf3', color: account.scope === 'business' ? '#4338ca' : '#15803d', fontSize: '0.64rem', marginTop: 3, display: 'inline-block' }}>{account.name}</span>}</td>
       <td className="text-right text-sm fa-amt" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{$(t.amount, true)}</strong></td>
       <td className="fa-ctl" style={{ verticalAlign: 'top' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={sel}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={{ ...sel, width: 130 }}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
           {d.kind === 'agent_payout' && <>
-            <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 140 }} />
-            <input placeholder="Deal / property" value={d.deal} onChange={e => setD({ ...d, deal: e.target.value })} style={{ ...sel, width: 150 }} />
-            <input placeholder="Memo — what it was for" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 190 }} />
+            <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 120 }} />
+            <input placeholder="Deal / property" value={d.deal} onChange={e => setD({ ...d, deal: e.target.value })} style={{ ...sel, width: 125 }} />
+            <input placeholder="Memo — what for" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 125 }} />
             <button className="btn btn-sm btn-primary" disabled={busy || !d.agent.trim()} onClick={() => done({ kind: 'agent_payout', category: 'Agent Commission', scope: 'business', counterparty: d.agent.trim(), deal_ref: d.deal.trim() || null, notes: d.notes || null })}>✓</button>
           </>}
           {d.kind === 'acquisition' && <>
@@ -447,9 +454,11 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
             <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: d.kind, category: d.kind === 'owner_draw' ? 'Owner Draw/Personal Use' : d.kind === 'owner_contribution' ? 'Owner contribution to RLC' : 'Transfer', notes: d.notes || null })}>✓</button>
           )}
           {needsCategory && <>
-            <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={sel}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
-            <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={sel}><option value="personal">Personal</option><option value="business">Business</option></select>
-            <input placeholder="note (optional)" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 120 }} />
+            <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={{ ...sel, width: 160 }}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
+            <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={{ ...sel, width: 92 }}><option value="personal">Personal</option><option value="business">Business</option></select>
+            {showNote || d.notes
+              ? <input autoFocus={showNote && !d.notes} placeholder="note" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 110 }} />
+              : <button type="button" className="btn btn-sm" style={{ padding: '3px 7px' }} onClick={() => setShowNote(true)}>+ Note</button>}
             <label className="text-xs" style={{ display: 'flex', gap: 3, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
               <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} /> Always
             </label>
