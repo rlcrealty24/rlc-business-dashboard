@@ -97,17 +97,20 @@ export function merchantOf(row) {
   return d.length > 40 ? d.slice(0, 40).trim() : d.replace(/\b\w/g, c => c.toUpperCase()).replace(/\B\w+/g, w => w.toLowerCase())
 }
 
+export const SUB_BUSINESS = /canva|chatgpt|openai|anthropic|claude\.ai|adobe|cognito|coffee ?(&|and) ?contracts|dotloop|monday\.com|cribflyer|godaddy|squarespace|wix\.com|webflow|microsoft|google ?workspace|gsuite|zoom\.us|zoom subscription|calendly|higgsfield|merchant bankcard|anytime mailbox|docusign|showingtime|kvcore|follow ?up ?boss|mailchimp|hubspot|notion|dropbox|slack/
+export const SUB_PERSONAL = /hulu|netflix|prime video|primevideo|amazon prime|spotify|disney|hbo|max\.com|peacock|paramount|youtube premium|apple\.com\/bill|icloud|walmart ?(plus|\+)|boost membership|audible|kindle unlimited/
+
 // Bank's own category → your category (used when no rule matches)
 const BANK_CATEGORY = {
   'general merchandise': 'Retail & General Shopping', 'restaurants/dining': 'Restaurants/Dining Out', 'gasoline/fuel': 'Mileage/Gas',
-  'electronics': 'Retail & General Shopping', 'travel': 'Travel - Transportation', 'groceries': 'Groceries', 'dues and subscriptions': 'Other Subscription',
-  'online services': 'Other Subscription', 'cable/satellite services': 'Home & Household', 'entertainment': 'Entertainment & Fun',
+  'electronics': 'Retail & General Shopping', 'travel': 'Travel - Transportation', 'groceries': 'Groceries', 'dues and subscriptions': 'Subscriptions',
+  'cable/satellite services': 'Home & Household', 'entertainment': 'Entertainment & Fun',
   'printing': 'Printing/Branding', 'service charges/fees': 'Bank Service Fees', 'hobbies': 'Entertainment & Fun', 'personal care': 'Beauty/Haircare',
   'clothing/shoes': 'Retail & General Shopping', 'healthcare/medical': 'Health & Wellness', 'home improvement': 'Home & Household',
   'utilities': 'Home & Household', 'telephone services': 'Home & Household', 'postage and shipping': 'Supplies',
   // Truist
   'office supplies & equipment': 'Supplies', 'food & catering': 'Meals (Business-Related)', 'vehicle expenses': 'Mileage/Gas',
-  'travel expenses': 'Travel - Transportation', 'taxes & fees': 'Bank Service Fees', 'charitable giving': 'Other', 'dues and subscriptions ': 'Other Subscription', 'wellness & welfare': 'Health & Wellness', 'professional & legal services': 'Accounting/Professional Fees',
+  'travel expenses': 'Travel - Transportation', 'taxes & fees': 'Bank Service Fees', 'charitable giving': 'Other',  'wellness & welfare': 'Health & Wellness', 'professional & legal services': 'Accounting/Professional Fees',
 }
 
 /**
@@ -195,7 +198,12 @@ export function classify(row, account, { categories, rules = [] }) {
 
   // 5. Spending
   if (/chuze|planet fitness|la fitness|24 hour fitness|crunch fitness|orangetheory|gym/.test(d)) return out('expense', 'Health & Wellness', { scope: 'personal' })
-  if (/prime video|amazon prime|primevideo|netflix|spotify|hulu|disney\+|youtube premium|apple\.com\/bill|icloud/.test(d)) return out('expense', 'Other Subscription')
+  // Subscriptions: one category; the vendor decides business vs personal
+  if (SUB_BUSINESS.test(d)) return out('expense', 'Subscriptions', { scope: 'business' })
+  if (SUB_PERSONAL.test(d)) return out('expense', 'Subscriptions', { scope: 'personal' })
+  if (/association of realtors|realtor association|board of realtors/.test(d)) return out('expense', 'MLS Dues', { scope: 'business' })
+  if (/parkreceipts|parking|parkmobile|park mobile|spothero/.test(d)) return out('expense', 'Public Parking')
+  if ((row.bankCategory || '').toLowerCase() === 'online services') return review('expense', null, 'Online payment — what was this?')
   const vendor = matchVendor(row.description, [], {}, categories)?.cat?.name
   if (vendor) return out('expense', vendor)
   if (/realtor association|board of realtors|mls/.test(d)) return out('expense', 'MLS Dues', { scope: 'business' })

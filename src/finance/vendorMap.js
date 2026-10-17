@@ -32,16 +32,16 @@ export const BUILTIN_VENDOR_MAP = [
   // Website Hosting
   { kw:['godaddy','namecheap','bluehost','hostgator','siteground','cloudflare','wix.com','weebly','squarespace hosting','webflow'],  category:'Website Hosting' },
   // Named subscriptions → exact existing categories
-  { kw:['canva'],  category:'Canva' },
-  { kw:['adobe ','adobe.com','acrobat pro','creative cloud','lightroom subscription'],  category:'Adobe' },
-  { kw:['chatgpt','openai subscription'],  category:'ChatGPT' },
-  { kw:['coffee & contracts','coffeeandcontracts'],  category:'Coffee & Contracts' },
-  { kw:['cognito forms','cognitoforms'],  category:'Cognito Forms' },
+  { kw:['canva'],  category:'Subscriptions' },
+  { kw:['adobe ','adobe.com','acrobat pro','creative cloud','lightroom subscription'],  category:'Subscriptions' },
+  { kw:['chatgpt','openai subscription'],  category:'Subscriptions' },
+  { kw:['coffee & contracts','coffeeandcontracts'],  category:'Subscriptions' },
+  { kw:['cognito forms','cognitoforms'],  category:'Subscriptions' },
   { kw:['microsoft workspace','microsoft 365','office 365','office365','msft 365'],  category:'Microsoft Workspace' },
   { kw:['dotloop'],  category:'Dotloop Transaction Management' },
   { kw:['monday.com','monday crm'],  category:'Monday CRM Software' },
-  // General software → Other Subscription
-  { kw:['zoom subscription','dropbox','google workspace','gsuite','slack subscription','notion','hubspot','mailchimp','constant contact','asana','trello','clickup','airtable','zapier','github subscription','figma','miro subscription','loom','calendly','typeform','docusign','hellosign','pandadoc','freshbooks','quickbooks','intuit subscription','freshdesk','zendesk','intercom','netlify','digitalocean','heroku','vercel subscription','aws subscription','amazon web services'],  category:'Other Subscription' },
+  // General software → Subscriptions
+  { kw:['zoom subscription','dropbox','google workspace','gsuite','slack subscription','notion','hubspot','mailchimp','constant contact','asana','trello','clickup','airtable','zapier','github subscription','figma','miro subscription','loom','calendly','typeform','docusign','hellosign','pandadoc','freshbooks','quickbooks','intuit subscription','freshdesk','zendesk','intercom','netlify','digitalocean','heroku','vercel subscription','aws subscription','amazon web services'],  category:'Subscriptions' },
   // MLS / Real Estate professional fees
   { kw:['stellar mls','mls membership','matrix mls','flexmls','rapattoni','mlslistings','realtor association','nar dues','board of realtors','car dues','nar annual'],  category:'MLS Dues' },
   // E&O Insurance
@@ -157,12 +157,7 @@ export const DEFAULT_CATEGORIES = [
   { id:uid(), name:'Broker to Broker Agent Commission Split', group:'Expenses',      kind:'business' },
   { id:uid(), name:'Unknown',                                 group:'Expenses',      kind:'both'     },
   { id:uid(), name:'Other',                                   group:'Expenses',      kind:'both'     },
-  { id:uid(), name:'Canva',                                   group:'Subscriptions', kind:'business' },
-  { id:uid(), name:'Adobe',                                   group:'Subscriptions', kind:'business' },
-  { id:uid(), name:'ChatGPT',                                 group:'Subscriptions', kind:'business' },
-  { id:uid(), name:'Coffee & Contracts',                      group:'Subscriptions', kind:'business' },
-  { id:uid(), name:'Cognito Forms',                           group:'Subscriptions', kind:'business' },
-  { id:uid(), name:'Other Subscription',                      group:'Subscriptions', kind:'both'     },
+  { id:uid(), name:'Subscriptions',                           group:'Subscriptions', kind:'both'     },
   { id:uid(), name:'Business Emergency Fund',                 group:'Savings',       kind:'business' },
   { id:uid(), name:'Personal Savings',                        group:'Savings',       kind:'personal' },
   { id:uid(), name:'Investment Account',                      group:'Savings',       kind:'both'     },

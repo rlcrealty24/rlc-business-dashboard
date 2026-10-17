@@ -98,7 +98,7 @@ export function recurring(txns, scope, dataEnd) {
       typical: r2(typical), last: last.date, lastAmount: r2(-last.amount), count: list.length,
       monthly: r2(typical), active: dataEnd ? daysBetween(last.date, dataEnd) <= 45 : true,
       increased: -last.amount > typical * 1.1 + 1,
-      subscription: typical <= 150 && (/subscription|canva|adobe|chatgpt|cognito/i.test(last.category || '') || SUB_WORDS.test(last.merchant || '')),
+      subscription: typical <= 150 && (/subscription/i.test(last.category || '') || SUB_WORDS.test(last.merchant || '')),
     }
   }).sort((a, b) => b.monthly - a.monthly)
 }
