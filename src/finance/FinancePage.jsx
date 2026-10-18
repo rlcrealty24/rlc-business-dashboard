@@ -21,13 +21,13 @@ const START = '2026-01-01'
 // Wide tables become stacked cards up to iPad landscape width — no sideways scrolling
 const FIN_CSS = `
 .fin-table td.fa-ctl select { max-width: 170px; } .fin-table td.fa-ctl input:not([type=checkbox]) { max-width: 140px; }
-@media (min-width: 1201px) {
+@media (min-width: 1301px) {
   .fin-table td.fa-ctl > div { flex-wrap: nowrap !important; }
-  .fin-table td.fa-main { max-width: 200px; min-width: 0 !important; }
+  .fin-table td.fa-main { max-width: 180px; min-width: 0 !important; }
   .fin-table td.fa-main > .text-xs { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 .fin-page .card-header h3 { color: var(--text); font-weight: 700; font-family: var(--sans); letter-spacing: .06em; font-size: 0.82rem; }
-@media (max-width: 1200px) {
+@media (max-width: 1300px) {
   .fin-table thead { display: none; }
   .fin-table, .fin-table tbody { display: block; width: 100%; }
   .fin-table tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr) auto; grid-template-areas: "main main amt" "date acct acct" "kind cat scope" "ctl ctl ctl";
@@ -398,7 +398,7 @@ function Review({ f, txns, catNames, agents, crm }) {
 }
 
 function ReviewRow({ t, f, catNames, account, agents, crm }) {
-  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '', deal: t.deal_ref || '' })
+  const [d, setD] = useState({ kind: t.kind, category: t.category || '', scope: t.scope || 'personal', always: false, match: ruleText(t), notes: t.notes || '', agent: t.counterparty || '', deal: t.deal_ref || '', from: t.amount > 0 ? (t.counterparty || '') : '' })
   const [busy, setBusy] = useState(false)
   const [showNote, setShowNote] = useState(false)
   const sel = { fontSize: '0.78rem', padding: '4px 6px', width: 'auto' }
@@ -407,16 +407,16 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
   async function confirm() {
     setBusy(true)
     try {
-      const patch = { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null, notes: d.notes || null, counterparty: d.agent || t.counterparty || null }
+      const patch = { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null, notes: d.notes || null, counterparty: d.from.trim() || d.agent || t.counterparty || null }
       if (d.always && d.match.trim()) {
         await f.addRule({ match: d.match, category: d.category, scope: d.scope, kind: d.kind })
         const ids = f.txns.filter(x => x.status === 'review' && x.description.toLowerCase().includes(d.match.trim().toLowerCase())).map(x => x.id)
-        await f.updateTxns([...new Set([t.id, ...ids])], { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null })
+        await f.updateTxns([...new Set([t.id, ...ids])], { kind: d.kind, category: d.category || null, scope: d.scope, status: 'ok', review_reason: null, ...(d.from.trim() ? { counterparty: d.from.trim() } : {}) })
         await f.updateTxns([t.id], { notes: d.notes || null, counterparty: patch.counterparty })
       } else await f.updateTxns([t.id], patch)
     } finally { setBusy(false) }
   }
-  const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution', 'acquisition'].includes(d.kind)
+  const needsCategory = !['transfer', 'commission_in', 'agent_payout', 'owner_draw', 'owner_contribution', 'acquisition', 'draw_in'].includes(d.kind)
   return (
     <tr>
       <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap', verticalAlign: 'top' }}>{fmtDay(t.date)}</td>
@@ -425,7 +425,16 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
       <td className="text-right text-sm fa-amt" style={{ color: t.amount > 0 ? 'var(--green)' : undefined, whiteSpace: 'nowrap', verticalAlign: 'top' }}><strong>{$(t.amount, true)}</strong></td>
       <td className="fa-ctl" style={{ verticalAlign: 'top' }}>
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={{ ...sel, width: 130 }}>{Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
+          <select value={d.kind} onChange={e => setD({ ...d, kind: e.target.value })} style={{ ...sel, width: 115 }}>
+            {t.amount > 0 && account?.scope !== 'business' && <option value="draw_in">Owner draw from RLC (Truist → me)</option>}
+            {Object.entries(KIND_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          {t.amount > 0 && !['agent_payout', 'acquisition', 'commission_in'].includes(d.kind) && (
+            <input placeholder="From (who / acct)" value={d.from} onChange={e => setD({ ...d, from: e.target.value })} style={{ ...sel, width: 115 }} />
+          )}
+          {['draw_in'].includes(d.kind) && (
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: 'transfer', category: 'Owner draw from RLC', scope: 'personal', counterparty: d.from.trim() || 'RLC (Truist)', notes: d.notes || null })}>✓</button>
+          )}
           {d.kind === 'agent_payout' && <>
             <input list="fin-agents" placeholder="Which agent?" value={d.agent} onChange={e => setD({ ...d, agent: e.target.value })} style={{ ...sel, width: 120 }} />
             <input placeholder="Deal / property" value={d.deal} onChange={e => setD({ ...d, deal: e.target.value })} style={{ ...sel, width: 125 }} />
@@ -451,16 +460,16 @@ function ReviewRow({ t, f, catNames, account, agents, crm }) {
             }}>✓</button>
           </>}
           {['owner_draw', 'owner_contribution', 'transfer'].includes(d.kind) && (
-            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: d.kind, category: d.kind === 'owner_draw' ? 'Owner Draw/Personal Use' : d.kind === 'owner_contribution' ? 'Owner contribution to RLC' : 'Transfer', notes: d.notes || null })}>✓</button>
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => done({ kind: d.kind, category: d.kind === 'owner_draw' ? 'Owner Draw/Personal Use' : d.kind === 'owner_contribution' ? 'Owner contribution to RLC' : 'Transfer', notes: d.notes || null, ...(d.from.trim() ? { counterparty: d.from.trim() } : {}) })}>✓</button>
           )}
           {needsCategory && <>
-            <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={{ ...sel, width: 160 }}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
-            <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={{ ...sel, width: 92 }}><option value="personal">Personal</option><option value="business">Business</option></select>
+            <select value={d.category} onChange={e => setD({ ...d, category: e.target.value })} style={{ ...sel, width: 140 }}><option value="">Category…</option>{catNames.map(c => <option key={c}>{c}</option>)}</select>
+            <select value={d.scope} onChange={e => setD({ ...d, scope: e.target.value })} style={{ ...sel, width: 84 }}><option value="personal">Personal</option><option value="business">Business</option></select>
             {showNote || d.notes
               ? <input autoFocus={showNote && !d.notes} placeholder="note" value={d.notes} onChange={e => setD({ ...d, notes: e.target.value })} style={{ ...sel, width: 110 }} />
               : <button type="button" className="btn btn-sm" style={{ padding: '3px 7px' }} onClick={() => setShowNote(true)}>+ Note</button>}
-            <label className="text-xs" style={{ display: 'flex', gap: 3, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
-              <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} /> Always
+            <label className="text-xs" title="Always: handle every matching transaction the same way, now and in future imports" style={{ display: 'flex', gap: 2, alignItems: 'center', textTransform: 'none', letterSpacing: 0 }}>
+              <input type="checkbox" checked={d.always} onChange={e => setD({ ...d, always: e.target.checked })} />Always
             </label>
             {d.always && <input value={d.match} onChange={e => setD({ ...d, match: e.target.value })} title="Matches any description containing this" style={{ ...sel, width: 120 }} />}
             <button className="btn btn-sm btn-primary" disabled={busy || !d.category} onClick={confirm}>✓</button>
