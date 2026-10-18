@@ -51,6 +51,7 @@ export default function FinancePage() {
   const [scope, setScope] = useState('all')
   const [tab, setTab] = useState('dashboard')
   const [month, setMonth] = useState(null)
+  const [reviewMonth, setReviewMonth] = useState(null)   // set when you open Review from a month on the dashboard
 
   const live = useMemo(() => {
     const excluded = new Set(f.accounts.filter(a => a.excluded).map(a => a.id))
@@ -105,10 +106,10 @@ export default function FinancePage() {
           The newest bank data is {ago(fresh.through)} days old — download recent-activity CSVs into <strong>Desktop › Finance 2026</strong> and ask Claude to “process my statements.”
         </div></div>
       )}
-      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => { setTab(k); if (k === 'review') setReviewMonth(null) }}>{l}</button>)}</div>
 
-      {tab === 'dashboard' && <Dashboard f={f} txns={live} scope={scope} month={sel} months={ms} setMonth={setMonth} fresh={fresh} goReview={() => setTab('review')} />}
-      {tab === 'review' && <Review f={f} txns={review} catNames={catNames} agents={agentNames} crm={crm.items} />}
+      {tab === 'dashboard' && <Dashboard f={f} txns={live} scope={scope} month={sel} months={ms} setMonth={setMonth} fresh={fresh} goReview={m => { setReviewMonth(typeof m === 'string' ? m : null); setTab('review') }} />}
+      {tab === 'review' && <Review f={f} txns={reviewMonth ? review.filter(t => t.date.startsWith(reviewMonth)) : review} total={review.length} month={reviewMonth} months={ms} setMonth={setReviewMonth} catNames={catNames} agents={agentNames} crm={crm.items} />}
       {tab === 'transactions' && <Transactions f={f} txns={live} scope={scope} months={ms} catNames={catNames} />}
       {tab === 'budgets' && <Budgets f={f} txns={live} scope={scope} month={sel} catNames={catNames} />}
       {tab === 'accounts' && <Accounts f={f} txns={f.txns} fresh={fresh} />}
@@ -160,7 +161,7 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
         {scope === 'personal' && <div className="metric-card metric-card-blue"><div className="metric-label">Paid yourself from RLC</div><div className="metric-value">{$(cur.draws || 0)}</div><div className="metric-change neutral">owner draws — not new earnings</div></div>}
         <div className="metric-card metric-card-expense"><div className="metric-label">Spending</div><div className="metric-value">{$(cur.spending)}</div>{delta(cur.spending, avg('spending'), false)}</div>
         <div className="metric-card metric-card-net"><div className="metric-label">Net cash flow</div><div className="metric-value" style={{ color: cur.net < 0 ? 'var(--red)' : 'var(--green)' }}>{$(cur.net)}</div><div className="metric-change neutral">{scope === 'personal' ? 'earned + draws − spending' : cur.income > 0 ? `${Math.round((cur.net / cur.income) * 100)}% of earnings kept` : '—'}</div></div>
-        <div className="metric-card metric-card-pending" style={{ cursor: review ? 'pointer' : 'default' }} onClick={review ? goReview : undefined}>
+        <div className="metric-card metric-card-pending" style={{ cursor: review ? 'pointer' : 'default' }} onClick={review ? () => goReview(month) : undefined}>
           <div className="metric-label">Needs your review</div><div className="metric-value">{review}</div><div className="metric-change neutral">{review ? 'this month · tap to review' : 'all clear this month'}</div>
         </div>
       </div>
@@ -216,7 +217,7 @@ function Dashboard({ f, txns, scope, month, months, setMonth, fresh, goReview })
               const b = budgetOf(c.category), max = Math.max(cats[0].amount, b?.monthly || 0)
               return (
                 <div key={c.category} title={b ? `Budget ${$(b.monthly)}` : ''}>
-                  <div className="flex-between text-sm"><span>{c.category === 'Uncategorized' ? <a href="#review" onClick={e => { e.preventDefault(); goReview() }} style={{ color: '#b45309' }}>Not categorized yet — review →</a> : c.category}</span><span><strong>{$(c.amount)}</strong>{b && <span className="text-muted"> / {$(b.monthly)}</span>}</span></div>
+                  <div className="flex-between text-sm"><span>{c.category === 'Uncategorized' ? <a href="#review" onClick={e => { e.preventDefault(); goReview(month) }} style={{ color: '#b45309' }}>Not categorized yet — review →</a> : c.category}</span><span><strong>{$(c.amount)}</strong>{b && <span className="text-muted"> / {$(b.monthly)}</span>}</span></div>
                   <div style={{ position: 'relative', height: 8, background: 'var(--surface-hover)', borderRadius: 4 }}>
                     <div style={{ width: `${(c.amount / max) * 100}%`, height: 8, borderRadius: 4, background: b && c.amount > b.monthly ? 'var(--red)' : C_SPEND }} />
                     {b && <div style={{ position: 'absolute', top: -2, left: `${(b.monthly / max) * 100}%`, width: 2, height: 12, background: 'var(--text)' }} />}
@@ -372,17 +373,28 @@ function ruleText(t) {
   return (t.merchant || t.description).toLowerCase().slice(0, 30)
 }
 
-function Review({ f, txns, catNames, agents, crm }) {
+function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm }) {
   const acct = Object.fromEntries(f.accounts.map(a => [a.id, a]))
   const groups = useMemo(() => {
     const g = new Map()
     for (const t of txns) { const k = t.review_reason || 'Check this'; if (!g.has(k)) g.set(k, []); g.get(k).push(t) }
     return [...g.entries()].sort((a, b) => b[1].length - a[1].length)
   }, [txns])
-  if (!txns.length) return <div className="card"><div className="card-body">Nothing waiting — every transaction is categorized. 🎉</div></div>
+  const monthBar = (
+    <div className="card"><div className="card-body" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+      <span className="text-sm" style={{ fontWeight: 600 }}>{month ? `${monthName(month, true)}: ${txns.length} to review` : `All months: ${total} to review`}</span>
+      <select value={month || ''} onChange={e => setMonth(e.target.value || null)} style={{ width: 'auto', fontSize: '0.8rem', padding: '4px 8px' }}>
+        <option value="">All months</option>
+        {[...months].reverse().map(m => <option key={m} value={m}>{monthName(m, true)}</option>)}
+      </select>
+      {month && <button className="btn btn-sm" onClick={() => setMonth(null)}>Show all months ({total})</button>}
+    </div></div>
+  )
+  if (!txns.length) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{monthBar}<div className="card"><div className="card-body">{month ? `Nothing left to review in ${monthName(month, true)}. 🎉` : 'Nothing waiting — every transaction is categorized. 🎉'}</div></div></div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <datalist id="fin-agents">{agents.map(n => <option key={n} value={n} />)}</datalist>
+      {monthBar}
       <div className="text-sm text-muted">Pick what each one is and press ✓. Tick <strong>Always</strong> and every matching transaction — now and in future imports — is handled the same way.</div>
       {groups.map(([reason, list]) => (
         <div key={reason} className="card">
