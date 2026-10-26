@@ -20,7 +20,7 @@ export function financeKey() {
 }
 
 let client = null
-function fin() {
+export function fin() {
   const key = financeKey()
   if (!key) return null
   if (!client) client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {

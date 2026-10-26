@@ -6,7 +6,8 @@ import { Fragment, useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useLocalStorage } from '../hooks/useLocalStorage.js'
 import { DEFAULT_CATEGORIES } from './vendorMap.js'
-import { KIND_LABELS } from './engine.js'
+import { ACCOUNTS, KIND_LABELS } from './engine.js'
+import { countNew, importParsed, readFiles } from './importer.js'
 import { useCrmCommissions } from './crm.js'
 import { useFinance } from './store.js'
 import { useCeo } from '../ceo/CeoStore.jsx'
@@ -51,7 +52,8 @@ export default function FinancePage() {
   const [scope, setScope] = useState('all')
   const [tab, setTab] = useState('dashboard')
   const [month, setMonth] = useState(null)
-  const [reviewMonth, setReviewMonth] = useState(null)   // set when you open Review from a month on the dashboard
+  const [reviewMonth, setReviewMonth] = useState(null)
+  const [importing, setImporting] = useState(false)   // set when you open Review from a month on the dashboard
 
   const live = useMemo(() => {
     const excluded = new Set(f.accounts.filter(a => a.excluded).map(a => a.id))
@@ -95,15 +97,19 @@ export default function FinancePage() {
             {f.meta.last_import?.at && <> · last import {fmtDay(f.meta.last_import.at.slice(0, 10))}</>}
           </p>
         </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-primary btn-sm" onClick={() => setImporting(v => !v)}>⇪ Import statements</button>
         <div className="tabs" style={{ margin: 0 }}>
           {[['all', 'All'], ['personal', 'Personal'], ['business', 'Business']].map(([k, l]) => (
             <button key={k} className={`tab ${scope === k ? 'active' : ''}`} onClick={() => setScope(k)}>{l}</button>
           ))}
         </div>
+        </div>
       </div>
+      {importing && <div className="mb-16"><ImportPanel f={f} categories={categories} onClose={() => setImporting(false)} /></div>}
       {fresh.through && ago(fresh.through) > 10 && (
         <div className="card mb-16" style={{ borderLeft: '3px solid var(--amber)' }}><div className="card-body text-sm">
-          The newest bank data is {ago(fresh.through)} days old — download recent-activity CSVs into <strong>Desktop › Finance 2026</strong> and ask Claude to “process my statements.”
+          The newest bank data is {ago(fresh.through)} days old — download recent-activity CSVs into <strong>Desktop › Finance 2026</strong>, then <a href="#import" onClick={e => { e.preventDefault(); setImporting(true) }}>Import statements →</a>
         </div></div>
       )}
       <div className="tabs">{TABS.map(([k, l]) => <button key={k} className={`tab ${tab === k ? 'active' : ''}`} onClick={() => { setTab(k); if (k === 'review') setReviewMonth(null) }}>{l}</button>)}</div>
@@ -119,6 +125,91 @@ export default function FinancePage() {
         amount: t.kind === 'commission_in' ? earnedOf(t) : t.kind === 'income' ? t.amount : -t.amount,
         category: t.category, spendingType: 'business', status: 'cleared', description: t.merchant,
       }))} />}
+    </div>
+  )
+}
+
+// ─── Import statements (in the page) ─────────────────────────────────────────
+function ImportPanel({ f, categories, onClose }) {
+  const [files, setFiles] = useState([])
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [drag, setDrag] = useState(false)
+  const existingIds = useMemo(() => new Set(f.txns.map(t => t.id)), [f.txns])
+
+  async function add(list) {
+    setError(null); setResult(null)
+    try {
+      const parsed = await readFiles([...list].filter(x => /\.csv$/i.test(x.name)), existingIds)
+      for (const p of parsed) p.newCount = await countNew(p, existingIds)
+      setFiles(prev => [...prev, ...parsed])
+    } catch (e) { setError(e.message) }
+  }
+  async function setAccount(i, id) {
+    const next = [...files]; next[i] = { ...next[i], accountId: id || null }
+    next[i].newCount = await countNew(next[i], existingIds)
+    setFiles(next)
+  }
+  async function run() {
+    setBusy(true); setError(null)
+    try {
+      const r = await importParsed(files, { categories, rules: f.rules, existing: f.txns, anchors: f.meta.balances || {}, statements: f.statements })
+      setResult(r); setFiles([])
+      await f.reload()
+    } catch (e) { setError(e.message) }
+    setBusy(false)
+  }
+  const ready = files.length && files.every(x => x.accountId)
+  const totalNew = files.reduce((s, x) => s + (x.newCount || 0), 0)
+  const range = rows => { const d = rows.map(r => r.date).sort(); return d.length ? `${fmtDay(d[0])} – ${fmtDay(d.at(-1))}` : 'no rows' }
+
+  return (
+    <div className="card" style={{ borderTop: '3px solid #1c9fd0' }}>
+      <div className="card-header"><h3>Import statements</h3><button className="btn btn-sm" onClick={onClose}>Close</button></div>
+      <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <label onDragOver={e => { e.preventDefault(); setDrag(true) }} onDragLeave={() => setDrag(false)}
+          onDrop={e => { e.preventDefault(); setDrag(false); add(e.dataTransfer.files) }}
+          style={{ border: `2px dashed ${drag ? '#1c9fd0' : 'var(--border)'}`, background: drag ? '#eef9fe' : 'var(--surface-hover)', padding: 22, textAlign: 'center', cursor: 'pointer', borderRadius: 6 }}>
+          <input type="file" accept=".csv,text/csv" multiple style={{ display: 'none' }} onChange={e => { add(e.target.files); e.target.value = '' }} />
+          <div style={{ fontWeight: 600 }}>Drop CSV files here, or click to choose</div>
+          <div className="text-xs text-muted" style={{ marginTop: 4 }}>From Desktop › Finance 2026 — NFCU, Truist, Amex. Overlapping dates are fine; duplicates are skipped.</div>
+        </label>
+
+        {files.length > 0 && (
+          <div className="table-container"><table><tbody>
+            {files.map((x, i) => (
+              <tr key={i}>
+                <td className="text-sm" style={{ wordBreak: 'break-all' }}>{x.name}<div className="text-xs text-muted">{x.rows.length} rows · {range(x.rows)}</div></td>
+                <td>
+                  <select value={x.accountId || ''} onChange={e => setAccount(i, e.target.value)} style={{ width: 'auto', fontSize: '0.8rem', padding: '4px 6px', borderColor: x.accountId ? undefined : '#b45309' }}>
+                    <option value="">Which account?</option>
+                    {ACCOUNTS.filter(a => !a.excluded).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                </td>
+                <td className="text-right text-sm">{x.newCount == null ? '—' : <strong>{x.newCount} new</strong>}</td>
+                <td><button className="btn btn-sm" style={{ padding: '0 6px' }} onClick={() => setFiles(files.filter((_, j) => j !== i))}>×</button></td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
+        {files.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" disabled={!ready || busy} onClick={run}>{busy ? 'Importing…' : `Import ${totalNew} new transaction${totalNew === 1 ? '' : 's'}`}</button>
+            {!ready && <span className="text-xs" style={{ color: '#b45309' }}>Pick the account for each file first.</span>}
+            {ready && totalNew === 0 && <span className="text-xs text-muted">Everything in these files is already imported — importing again just re-checks balances.</span>}
+          </div>
+        )}
+        {error && <div className="text-sm" style={{ color: 'var(--red)' }}>Couldn’t import: {error}</div>}
+        {result && (
+          <div className="text-sm" style={{ background: '#ecfdf3', border: '1px solid #86efac', padding: 12, borderRadius: 6, lineHeight: 1.6 }}>
+            <strong>Imported {result.newCount} new transactions.</strong> {result.review ? `${result.review} need your review. ` : ''}{result.matched ? `${result.matched} transfer sides matched. ` : ''}
+            {result.lines.map((l, i) => <div key={i} className="text-xs">{l}</div>)}
+            {result.skipped.map((l, i) => <div key={i} className="text-xs" style={{ color: '#b45309' }}>Skipped: {l}</div>)}
+            <div className="text-xs text-muted" style={{ marginTop: 4 }}>Tip: update each account’s balance on Accounts so the month-end check uses today’s number.</div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -812,8 +903,8 @@ function Accounts({ f, txns, fresh }) {
       <div className="card">
         <div className="card-header"><h3>Your routine</h3></div>
         <div className="card-body text-sm" style={{ lineHeight: 1.7 }}>
-          <div><strong>Weekly (2 min, optional):</strong> download “recent activity” CSVs for NFCU checking and the Amex into <strong>Desktop › Finance 2026</strong>, then tell Claude “process my statements.” Overlaps are handled automatically.</div>
-          <div><strong>Monthly:</strong> add each account’s full-month CSV and PDF statement to its folder, then “process my statements.” Claude imports, matches transfers, categorizes and checks balances; only uncertain items land in Review.</div>
+          <div><strong>Weekly (2 min, optional):</strong> download “recent activity” CSVs for NFCU checking and the Amex into <strong>Desktop › Finance 2026</strong>, then press <strong>Import statements</strong> at the top. Overlaps are handled automatically.</div>
+          <div><strong>Monthly:</strong> add each account’s full-month CSV and PDF statement to its folder, then press <strong>Import statements</strong> (or ask Claude). It matches transfers, categorizes and checks balances; only uncertain items land in Review.</div>
           <div><strong>Sunday review:</strong> Dashboard → Review → Budgets. Everything shows its “data through” date, so you always know how current it is.</div>
           {f.meta.last_import?.report && <details style={{ marginTop: 8 }}><summary className="text-muted">Last import report</summary><pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.72rem' }}>{f.meta.last_import.report}</pre></details>}
         </div>

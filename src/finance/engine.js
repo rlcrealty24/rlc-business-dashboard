@@ -247,15 +247,16 @@ export function markRecurring(txns) {
 }
 
 /** Stable id: the same transaction imported twice (overlapping files) lands on the same row */
-export function txnIds(accountId, rows, hash) {
+export function txnBases(accountId, rows) {
   const seen = new Map()
   return rows.map(r => {
     const base = `${accountId}|${r.posted || r.date}|${r.amount.toFixed(2)}|${r.description}`
     const n = (seen.get(base) || 0) + 1
     seen.set(base, n)
-    return hash(`${base}|${n}`)
+    return `${base}|${n}`
   })
 }
+export const txnIds = (accountId, rows, hash) => txnBases(accountId, rows).map(hash)
 
 /** Running-balance check (Truist): each day's balance change must equal that day's transactions */
 export function balanceCheck(rows) {
