@@ -464,7 +464,11 @@ function ruleText(t) {
   return (t.merchant || t.description).toLowerCase().slice(0, 30)
 }
 
+const CLOSED_KEY = '__fin_review_closed'   // which Review sections you minimized — remembered on this device
 function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm }) {
+  const [closed, setClosed] = useState(() => { try { return JSON.parse(localStorage.getItem(CLOSED_KEY)) || [] } catch { return [] } })
+  const save = next => { setClosed(next); try { localStorage.setItem(CLOSED_KEY, JSON.stringify(next)) } catch {} }
+  const toggle = reason => save(closed.includes(reason) ? closed.filter(r => r !== reason) : [...closed, reason])
   const acct = Object.fromEntries(f.accounts.map(a => [a.id, a]))
   const groups = useMemo(() => {
     const g = new Map()
@@ -479,6 +483,10 @@ function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm
         {[...months].reverse().map(m => <option key={m} value={m}>{monthName(m, true)}</option>)}
       </select>
       {month && <button className="btn btn-sm" onClick={() => setMonth(null)}>Show all months ({total})</button>}
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+        <button className="btn btn-sm" onClick={() => save(groups.map(([r]) => r))}>▸ Collapse all</button>
+        <button className="btn btn-sm" onClick={() => save([])}>▾ Expand all</button>
+      </span>
     </div></div>
   )
   if (!txns.length) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{monthBar}<div className="card"><div className="card-body">{month ? `Nothing left to review in ${monthName(month, true)}. 🎉` : 'Nothing waiting — every transaction is categorized. 🎉'}</div></div></div>
@@ -487,15 +495,27 @@ function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm
       <datalist id="fin-agents">{agents.map(n => <option key={n} value={n} />)}</datalist>
       {monthBar}
       <div className="text-sm text-muted">Pick what each one is and press ✓. Tick <strong>Always</strong> and every matching transaction — now and in future imports — is handled the same way.</div>
-      {groups.map(([reason, list]) => (
-        <div key={reason} className="card">
-          <div className="card-header"><h3 style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--sans, inherit)', letterSpacing: '0.04em' }}>{reason}</h3><span className="text-xs text-muted">{list.length}</span></div>
-          <div className="table-container"><table className="fin-table"><tbody>
-            {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} agents={agents} crm={crm} />)}
-          </tbody></table></div>
-          {list.length > 50 && <div className="card-body text-xs text-muted">+{list.length - 50} more — rules you save clear many at once.</div>}
-        </div>
-      ))}
+      {groups.map(([reason, list]) => {
+        const shut = closed.includes(reason)
+        return (
+          <div key={reason} className="card">
+            <div className="card-header" role="button" tabIndex={0} aria-expanded={!shut} title={shut ? 'Show this section' : 'Minimize this section'}
+              onClick={() => toggle(reason)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(reason) } }}
+              style={{ cursor: 'pointer', userSelect: 'none', ...(shut ? { borderBottom: 'none' } : {}) }}>
+              <h3 style={{ color: 'var(--text)', fontWeight: 700, fontFamily: 'var(--sans, inherit)', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span aria-hidden="true" style={{ display: 'inline-block', width: 12, transition: 'transform .15s', transform: shut ? 'rotate(-90deg)' : 'none', color: '#1c9fd0' }}>▼</span>{reason}
+              </h3>
+              <span className="text-xs text-muted">{list.length}</span>
+            </div>
+            {!shut && <>
+              <div className="table-container"><table className="fin-table"><tbody>
+                {list.slice(0, 50).map(t => <ReviewRow key={t.id} t={t} f={f} catNames={catNames} account={acct[t.account_id]} agents={agents} crm={crm} />)}
+              </tbody></table></div>
+              {list.length > 50 && <div className="card-body text-xs text-muted">+{list.length - 50} more — rules you save clear many at once.</div>}
+            </>}
+          </div>
+        )
+      })}
     </div>
   )
 }
