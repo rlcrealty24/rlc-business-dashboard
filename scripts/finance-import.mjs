@@ -62,8 +62,10 @@ for (const file of csvs) {
   if (!account) { skipped.push(`${path.basename(file)} — couldn't tell which account`); continue }
   if (account.excluded) { skipped.push(`${path.basename(file)} — ${account.name} is excluded from reporting`); continue }
   const ids = txnIds(account.id, rows, hash)
+  if (!byAccountRows.has(account.id)) byAccountRows.set(account.id, [])
   rows.forEach((row, i) => {
     if (all.has(ids[i])) return                                   // overlapping files: same transaction
+    byAccountRows.get(account.id).push(row)                        // balance check sees each transaction once
     const c = classify(row, account, { categories, rules })
     all.set(ids[i], {
       id: ids[i], account_id: account.id, date: row.date, amount: row.amount, description: row.description,
@@ -72,8 +74,6 @@ for (const file of csvs) {
       _wallet: !!c.wallet,
     })
   })
-  if (!byAccountRows.has(account.id)) byAccountRows.set(account.id, [])
-  byAccountRows.get(account.id).push(...rows)
 }
 const txns = markRecurring(pairTransfers([...all.values()]))
 
