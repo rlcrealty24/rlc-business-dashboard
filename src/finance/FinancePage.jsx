@@ -675,7 +675,7 @@ function FlagMenu({ t, f }) {
       try {
         const task = await saveTask({
           title: flag === 'refund' ? `Request refund: ${what}` : `Look into charge I don’t recognize: ${what}`,
-          status: 'next', priority: flag === 'refund' ? 'high' : 'medium',
+          status: 'next', priority: flag === 'refund' ? 'high' : 'medium', category: 'finance',
           notes: `Finance → Transactions (flagged). ${t.description}`,
         })
         entry.task_id = task?.id || null

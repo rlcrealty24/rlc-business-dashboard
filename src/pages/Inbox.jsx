@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import '../ceo/ceo.css'
 import { useCeo } from '../ceo/CeoStore.jsx'
-import { CATEGORIES, PORTAL_URL } from '../ceo/constants.js'
+import { CATEGORIES, PORTAL_URL, TASK_AREA_ORDER } from '../ceo/constants.js'
 import { addDays, fmtDate, fmtTime, todayISO } from '../ceo/recurrence.js'
 import { Modal, Tick } from '../ceo/ui.jsx'
 import { useCalendarItems } from '../ceo/useCalendarItems.js'
@@ -50,12 +50,12 @@ export default function Inbox() {
     <div className="c-page" style={{ maxWidth: 980 }}>
       <div className="c-head">
         <div>
-          <div className="c-eyebrow">CEO · Inbox</div>
-          <div className="c-title">Capture now. Decide later.</div>
-          <div className="c-sub">Everything you dump here gets sorted once a day during Tomorrow Setup.</div>
+          <div className="c-eyebrow">CEO · Tasks</div>
+          <div className="c-title">Tasks</div>
+          <div className="c-sub">Capture anything. Sorted by area — minimize what you’re not working on.</div>
         </div>
         <div className="c-head-actions">
-          <button className="c-btn c-btn-ink" disabled={!inbox.length} onClick={() => setTriage(true)}>Triage {inbox.length || ''} →</button>
+          <button className="c-btn c-btn-ink" disabled={!inbox.length} onClick={() => setTriage(true)} title="Go through new, unsorted tasks one at a time">Sort {inbox.length || ''} new →</button>
         </div>
       </div>
 
@@ -72,15 +72,7 @@ export default function Inbox() {
       <div className="c-stack">
         <TaskCoach limit={8} />
 
-        <Section title="Inbox" count={inbox.length} hint="Unsorted">
-          {inbox.length === 0 && <div className="c-empty">Inbox zero. Nice.</div>}
-          {inbox.map(t => <TaskRow key={t.id} task={t} focusCount={focusCount} />)}
-        </Section>
-
-        <Section title="Next" count={next.length} hint="Sorted by priority, then due date">
-          {next.length === 0 && <div className="c-empty">Nothing queued.</div>}
-          {next.map(t => <TaskRow key={t.id} task={t} focusCount={focusCount} />)}
-        </Section>
+        <AreaGroups tasks={[...inbox, ...next]} focusCount={focusCount} />
 
         {portalTasks.length > 0 && (
           <Section title="From the RLC Portal" count={portalTasks.length} hint="Deal & contact tasks · edit in the portal">
@@ -110,6 +102,50 @@ export default function Inbox() {
   )
 }
 
+const CLOSED_KEY = '__tasks_closed'   // minimized areas — remembered on this device only
+const sortTasks = (a, b) => ((b.focus_date === focusDay()) - (a.focus_date === focusDay()))
+  || ((PRIO_ORDER[a.priority] ?? 3) - (PRIO_ORDER[b.priority] ?? 3))
+  || (a.due_date || '9').localeCompare(b.due_date || '9')
+
+/** Open tasks grouped by area, each group colored and collapsible */
+function AreaGroups({ tasks, focusCount }) {
+  const [closed, setClosed] = useState(() => { try { return JSON.parse(localStorage.getItem(CLOSED_KEY)) || [] } catch { return [] } })
+  const save = next => { setClosed(next); try { localStorage.setItem(CLOSED_KEY, JSON.stringify(next)) } catch {} }
+  const groups = [
+    ...TASK_AREA_ORDER.map(k => [k, tasks.filter(t => t.category === k)]),
+    ['none', tasks.filter(t => !t.category || !CATEGORIES[t.category])],
+  ].filter(([, list]) => list.length)
+  if (!tasks.length) return <div className="c-card"><div className="c-empty">Nothing open. Nice.</div></div>
+  return (
+    <>
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+        <button className="c-btn c-btn-ghost c-btn-sm" onClick={() => save(groups.map(([k]) => k))}>▸ Collapse all</button>
+        <button className="c-btn c-btn-ghost c-btn-sm" onClick={() => save([])}>▾ Expand all</button>
+      </div>
+      {groups.map(([k, list]) => {
+        const cat = CATEGORIES[k] || { label: 'No area yet', color: '#9ca3af', bg: '#fafafa' }
+        const shut = closed.includes(k)
+        const toggle = () => save(shut ? closed.filter(x => x !== k) : [...closed, k])
+        return (
+          <div key={k} className="c-card" style={{ borderLeft: `4px solid ${cat.color}` }}>
+            <div className="c-card-head" role="button" tabIndex={0} aria-expanded={!shut} onClick={toggle}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } }}
+              style={{ cursor: 'pointer', userSelect: 'none', background: cat.bg, ...(shut ? { borderBottom: 'none' } : {}) }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span aria-hidden="true" style={{ display: 'inline-block', width: 12, color: cat.color, transition: 'transform .15s', transform: shut ? 'rotate(-90deg)' : 'none' }}>▼</span>
+                <div className="c-card-title" style={{ color: 'var(--ink)' }}>{cat.label}</div>
+                {k === 'none' && <span className="c-muted" style={{ fontSize: 12 }}>pick an area on each task</span>}
+              </div>
+              <span className="c-chip" style={{ borderColor: cat.color, color: cat.color, background: '#fff' }}>{list.length}</span>
+            </div>
+            {!shut && [...list].sort(sortTasks).map(t => <TaskRow key={t.id} task={t} focusCount={focusCount} tint={cat} />)}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 function Section({ title, count, hint, children }) {
   return (
     <div className="c-card">
@@ -125,7 +161,7 @@ function Section({ title, count, hint, children }) {
   )
 }
 
-function TaskRow({ task: t, focusCount }) {
+function TaskRow({ task: t, focusCount, tint }) {
   const { updateTask, deleteTask } = useCeo()
   const [scheduling, setScheduling] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -136,7 +172,7 @@ function TaskRow({ task: t, focusCount }) {
   const cyclePrio = () => updateTask(t, { priority: PRIOS[(PRIOS.indexOf(t.priority) + 1) % 3], status: t.status === 'inbox' ? 'next' : t.status })
 
   return (
-    <div className="c-task">
+    <div className="c-task" style={tint ? { background: tint.bg } : undefined}>
       <button className={`c-check${isDone ? ' done' : ''}`} style={{ padding: 0, border: 0 }} aria-label="Complete"
         onClick={() => updateTask(t, isDone ? { status: 'next', completed_at: null } : { status: 'done', completed_at: new Date().toISOString() })}>
         <span className="c-box">{isDone && <Tick />}</span>
@@ -152,7 +188,8 @@ function TaskRow({ task: t, focusCount }) {
           {focused && <span className="c-chip sky">★ Today</span>}
           {t.due_date && <span className={`c-chip${t.due_date < today && !isDone ? ' red' : ''}`}>Due {fmtDate(t.due_date, { month: 'short', day: 'numeric' })}</span>}
           {t.scheduled_date && <span className="c-chip">On calendar {fmtDate(t.scheduled_date, { month: 'short', day: 'numeric' })}{t.scheduled_time ? ` · ${fmtTime(t.scheduled_time)}` : ''}</span>}
-          {t.category && CATEGORIES[t.category] && <span className="c-chip" style={{ color: CATEGORIES[t.category].color }}>{CATEGORIES[t.category].label}</span>}
+          {t.status === 'inbox' && !isDone && <span className="c-chip sky">new</span>}
+          {!tint && t.category && CATEGORIES[t.category] && <span className="c-chip" style={{ color: CATEGORIES[t.category].color }}>{CATEGORIES[t.category].label}</span>}
         </div>
         {scheduling && <ScheduleForm task={t} onDone={() => setScheduling(false)} />}
       </div>
@@ -161,6 +198,11 @@ function TaskRow({ task: t, focusCount }) {
           {!t.priority && PRIOS.map(p => <button key={p} className={`c-chip c-prio-${p}`} onClick={() => updateTask(t, { priority: p, status: 'next' })}>{p[0].toUpperCase()}</button>)}
           <button className={`c-chip${focused ? ' sky' : ''}`} disabled={!focused && focusCount >= 3} title={!focused && focusCount >= 3 ? 'Top 3 is full' : 'Today\'s Top 3'}
             onClick={() => updateTask(t, { focus_date: focused ? null : focusDay(), status: t.status === 'inbox' ? 'next' : t.status })}>★</button>
+          <select className="c-chip" aria-label="Area" title="Move to another area" value={t.category || ''} onChange={e => updateTask(t, { category: e.target.value || null })}
+            style={{ cursor: 'pointer', maxWidth: 130, background: '#fff' }}>
+            <option value="">Area…</option>
+            {TASK_AREA_ORDER.map(k => <option key={k} value={k}>{CATEGORIES[k].label}</option>)}
+          </select>
           <button className="c-chip" onClick={() => setScheduling(s => !s)}>Schedule</button>
           <button className="c-chip" onClick={() => deleteTask(t.id)} aria-label="Delete">✕</button>
         </div>

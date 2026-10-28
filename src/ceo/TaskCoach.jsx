@@ -169,7 +169,7 @@ export default function TaskCoach({ limit = 6 }) {
         </div>
       )}
       <div className="c-muted" style={{ fontSize: 11, padding: '8px 20px 12px' }}>
-        Everything in your <Link className="c-link" to="/inbox">Inbox</Link> — your one task list.
+        Everything on your <Link className="c-link" to="/inbox">Tasks</Link> page — your one task list.
       </div>
     </div>
   )

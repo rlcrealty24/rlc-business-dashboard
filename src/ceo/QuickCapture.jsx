@@ -41,7 +41,7 @@ export default function QuickCapture() {
       navigate('/inbox', { state: { dump: text } })
     } else {
       await capture(text)
-      toast('Captured', 'Saved to your Inbox — back to what you were doing.')
+      toast('Captured', 'Saved to Tasks — back to what you were doing.')
     }
     setText('')
     setOpen(false)
@@ -56,7 +56,7 @@ export default function QuickCapture() {
           <form onSubmit={submit} style={{ width: '100%', maxWidth: 560 }} onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
               <div className="c-seg" style={{ borderColor: 'rgba(255,255,255,.4)' }}>
-                {[['task', 'Task → Inbox'], ['idea', 'Content idea']].map(([k, l]) => (
+                {[['task', 'Task'], ['idea', 'Content idea']].map(([k, l]) => (
                   <button key={k} type="button" className={mode === k ? 'on' : ''} onClick={() => setMode(k)}
                     style={mode === k ? { background: 'var(--sky)', color: 'var(--ink)' } : { background: 'transparent', color: '#fff' }}>{l}</button>
                 ))}

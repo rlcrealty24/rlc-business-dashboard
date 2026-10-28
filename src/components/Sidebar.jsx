@@ -11,7 +11,7 @@ const ico = d => (
 const CEO_NAV = [
   { path: '/today',    label: 'Today',    icon: ico(<><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></>) },
   { path: '/calendar', label: 'Calendar', icon: ico(<><rect x="3" y="4" width="18" height="17" rx="1"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="16" y1="2" x2="16" y2="6"/></>) },
-  { path: '/inbox',    label: 'Inbox',    icon: ico(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>) },
+  { path: '/inbox',    label: 'Tasks',    icon: ico(<><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></>) },
   { path: '/dates',    label: 'Dates & Reminders', icon: ico(<><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>) },
 ]
 

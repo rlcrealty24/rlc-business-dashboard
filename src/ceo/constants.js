@@ -10,7 +10,11 @@ export const CATEGORIES = {
   personal: { label: 'Personal',           color: '#8a6d3b', bg: '#f8f3ea' },
   learning: { label: 'Learning',           color: '#7c3aed', bg: '#f5f0ff' },
   dates:    { label: 'Dates & Deadlines',  color: '#b91c1c', bg: '#fef2f2' },
+  tech:     { label: 'Systems & Tech',     color: '#475569', bg: '#f1f5f9' },
+  finance:  { label: 'Finance',            color: '#0f766e', bg: '#effaf8' },
 }
+/** How the Tasks page groups areas, top to bottom */
+export const TASK_AREA_ORDER = ['money', 'business', 'meetings', 'content', 'tech', 'finance', 'personal', 'sophia', 'fitness', 'learning', 'dates']
 
 // Items that come from outside the CEO tables
 export const SOURCE_STYLE = {

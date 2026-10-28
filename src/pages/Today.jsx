@@ -194,7 +194,7 @@ export default function Today() {
 
           <div className="c-card">
             <div className="c-card-head">
-              <div className="c-card-title">Inbox</div>
+              <div className="c-card-title">New tasks</div>
               <span className={`c-chip${inboxCount ? ' sky' : ''}`}>{inboxCount} to sort</span>
             </div>
             <div className="c-card-body" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -321,7 +321,7 @@ function Top3({ tasks: all, today, isTomorrow, allTasks, saveTask, updateTask })
           <button className="c-btn c-btn-ink">Add</button>
         </form>
       ) : (
-        <div className="c-card-body c-muted" style={{ fontSize: 12 }}>Three is the limit. Everything else waits in the <Link className="c-link" to="/inbox">Inbox</Link>.</div>
+        <div className="c-card-body c-muted" style={{ fontSize: 12 }}>Three is the limit. Everything else waits on <Link className="c-link" to="/inbox">Tasks</Link>.</div>
       )}
     </div>
   )

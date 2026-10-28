@@ -176,7 +176,7 @@ export default function PortalProject() {
     <div>
       <div className="page-header"><h1>Projects</h1><p>Big-picture milestones and progress notes</p></div>
       <div className="card mb-16" style={{ borderLeft: '3px solid #1c9fd0' }}><div className="card-body text-sm">
-        Looking for a task? All tasks live in one list — your <Link to="/inbox" style={{ color: '#1c9fd0', fontWeight: 'bold' }}>Inbox</Link>. What to do next is on <Link to="/today" style={{ color: '#1c9fd0', fontWeight: 'bold' }}>Today</Link>.
+        Looking for a task? All tasks live in one list — your <Link to="/inbox" style={{ color: '#1c9fd0', fontWeight: 'bold' }}>Tasks</Link> page. What to do next is on <Link to="/today" style={{ color: '#1c9fd0', fontWeight: 'bold' }}>Today</Link>.
       </div></div>
       <div className="tabs">{TABS.map(t=><button key={t.id} className={`tab ${tab===t.id?'active':''}`} onClick={()=>setTab(t.id)}>{t.label}</button>)}</div>
       {tab==='milestones' && <Milestones />}
