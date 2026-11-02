@@ -10,6 +10,7 @@ import {
 import ItemSheet from '../ceo/ItemSheet.jsx'
 import BlockModal from '../ceo/BlockModal.jsx'
 import { toast } from '../ceo/ui.jsx'
+import { Countdown, Garland, holidayOn, useHoliday } from '../ceo/holiday.jsx'
 
 const GRID_START = 5      // 5 AM
 const GRID_END = 22       // 10 PM
@@ -35,6 +36,7 @@ export default function CeoCalendar() {
   const [hidden, setHidden] = useState(() => new Set())
   const [hiddenCats, setHiddenCats] = useState(() => new Set())
   const { setupNeeded } = useCeo()
+  const { on: xmas } = useHoliday()
 
   // Visible range
   const { from, to, days } = useMemo(() => {
@@ -84,7 +86,8 @@ export default function CeoCalendar() {
           <div className="c-title">Everything, one place</div>
           <div className="c-sub">Personal blocks in color · RLC Portal events in black · drag a block to move it, click an empty slot to add.</div>
         </div>
-        <div className="c-head-actions">
+        <div className="c-head-actions" style={{ alignItems: 'center' }}>
+          {xmas && <Countdown />}
           <button className="c-btn" onClick={() => setCreating({ kind: 'date', all_day: true, start_date: anchor, category: 'dates', date_type: 'event', reminders: [10080, 1440] })}>+ Date</button>
           <button className="c-btn c-btn-sky" onClick={() => setCreating({ start_date: anchor })}>+ New block</button>
         </div>
@@ -118,6 +121,7 @@ export default function CeoCalendar() {
         ))}
       </div>
 
+      {xmas && <Garland />}
       {view === 'month'
         ? <MonthView days={days} anchor={anchor} byDate={byDate} visible={visible}
             onDay={d => { setAnchor(d); setView('day') }} onOpen={setOpenKey} />
@@ -200,6 +204,7 @@ function TimeGrid({ days, byDate, visible, onOpen, onCreate, onDayClick }) {
           <div key={d} className={`c-cal-dayhead${d === today ? ' today' : ''}`} onClick={() => onDayClick(d)}>
             <div className="dn">{DAY_SHORT[parseISO(d).getDay()]}</div>
             <div className="dd">{parseISO(d).getDate()}</div>
+            {holidayOn(d) && <div className="x-holiday">{holidayOn(d)}</div>}
           </div>
         ))}
       </div>
@@ -210,9 +215,9 @@ function TimeGrid({ days, byDate, visible, onOpen, onCreate, onDayClick }) {
             {(byDate.get(d) || []).filter(i => i.allDay && visible(i)).map(i => {
               const c = itemColors(i)
               return (
-                <div key={i.key} className="c-pill" title={i.title} onClick={() => onOpen(i.key)}
+                <div key={i.key} className={`c-pill${i.trip ? ' trip' : ''}`} title={i.title} onClick={() => onOpen(i.key)}
                   style={{ background: i.source === 'portal' ? '#0a0a0a' : c.bg, color: i.source === 'portal' ? '#fff' : c.color, borderLeftColor: i.source === 'portal' ? 'var(--sky)' : c.color }}>
-                  {i.unconfirmed ? '(?) ' : ''}{i.title}
+                  {i.unconfirmed ? '(?) ' : ''}{i.title}{i.trip && <span className="tday">day {i.trip.day}/{i.trip.of}</span>}
                 </div>
               )
             })}
@@ -290,15 +295,16 @@ function MonthView({ days, anchor, byDate, visible, onDay, onOpen }) {
           const routine = list.length - special.length
           const other = parseISO(d).getMonth() !== month
           return (
-            <div key={d} className={`c-month-cell${other ? ' other' : ''}${d === today ? ' today' : ''}`} onClick={() => onDay(d)}>
+            <div key={d} className={`c-month-cell${other ? ' other' : ''}${d === today ? ' today' : ''}${/-12-2[45]$/.test(d) ? ' x-big' : ''}`} onClick={() => onDay(d)}>
               <div className="md">{parseISO(d).getDate() === 1 ? `${MONTH_SHORT[parseISO(d).getMonth()]} 1` : parseISO(d).getDate()}</div>
+              {holidayOn(d) && <div className="x-holiday">{holidayOn(d)}</div>}
               {special.slice(0, 4).map(i => {
                 const c = itemColors(i)
                 const isPortal = i.source === 'portal'
                 return (
-                  <div key={i.key} className="c-pill" title={i.title} onClick={e => { e.stopPropagation(); onOpen(i.key) }}
+                  <div key={i.key} className={`c-pill${i.trip ? ' trip' : ''}`} title={i.title} onClick={e => { e.stopPropagation(); onOpen(i.key) }}
                     style={{ background: isPortal ? '#0a0a0a' : c.bg, color: isPortal ? '#fff' : c.color, borderLeftColor: isPortal ? 'var(--sky)' : c.color }}>
-                    {!i.allDay && `${fmtTime(i.start)} `}{i.unconfirmed ? '(?) ' : ''}{i.title}
+                    {!i.allDay && `${fmtTime(i.start)} `}{i.unconfirmed ? '(?) ' : ''}{i.title}{i.trip && <span className="tday">{i.trip.day}/{i.trip.of}</span>}
                   </div>
                 )
               })}

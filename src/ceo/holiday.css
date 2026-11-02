@@ -1,0 +1,81 @@
+/* ─── Christmas theme — active when <html class="xmas"> ─────────────────────── */
+html.xmas {
+  --x-red: #c4162a;
+  --x-red-soft: #fdeff0;
+  --x-green: #17603a;
+  --x-green-soft: #edf6f0;
+  --x-gold: #c9a227;
+  --sky: #c4162a;
+  --sky-deep: #17603a;
+  --sky-soft: #fdeff0;
+  --pink: #17603a;
+  --pink-light: #edf6f0;
+  --pink-border: #b9dcc6;
+  --pink-text: #17603a;
+  --blue: #17603a;
+  --blue-bg: #edf6f0;
+  --sidebar-active-bg: #fdeff0;
+}
+html.xmas body { background: #fbf8f3; }
+
+/* Sidebar */
+html.xmas .rlc-brand { position: relative; background: linear-gradient(180deg, #fff 0%, #fdf6f0 100%); }
+html.xmas .rlc-brand-sub::after { content: '  🎄'; letter-spacing: 0; }
+html.xmas .rlc-nav.active { border-left-color: var(--x-red); }
+html.xmas .rlc-side-foot { background: linear-gradient(180deg, #fff, var(--x-green-soft)); }
+.x-toggle { margin-top: 10px; align-self: flex-start; font-family: var(--sans); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  border: 1px solid var(--border); background: #fff; padding: 5px 9px; cursor: pointer; color: var(--mid); }
+.x-toggle:hover { border-color: var(--ink); color: var(--ink); }
+
+/* Buttons & cards */
+html.xmas .c-btn-sky { color: #fff; }
+html.xmas .c-btn-sky:hover { background: #a01222; border-color: #a01222; color: #fff; }
+html.xmas .c-btn-ink:hover { background: #0f4a2c; border-color: #0f4a2c; }
+html.xmas .c-card.ink { background: linear-gradient(135deg, #fdeff0 0%, #fbf7ee 55%, #edf6f0 100%); border-color: #ecc9cd; }
+html.xmas .c-eyebrow { color: var(--x-red); }
+html.xmas .c-title { color: var(--x-green); }
+
+/* Countdown chip */
+.x-count { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 11px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: #fff; background: linear-gradient(90deg, var(--x-red, #c4162a), #e0303f); box-shadow: 0 2px 8px rgba(196,22,42,.25); }
+
+/* String of lights */
+.x-garland { display: flex; justify-content: space-around; align-items: flex-start; height: 22px; margin-bottom: -4px; position: relative;
+  background: radial-gradient(ellipse 60% 14px at 50% 0, transparent 92%, #2d4a35 94%, transparent 97%) 0 0 / 60px 16px repeat-x; }
+.x-garland span { width: 9px; height: 13px; border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%; margin-top: 7px; animation: x-twinkle 1.6s ease-in-out infinite; }
+.x-garland span:nth-child(4n+1) { background: #e0303f; color: #e0303f; }
+.x-garland span:nth-child(4n+2) { background: #2fa35b; color: #2fa35b; animation-delay: .4s; }
+.x-garland span:nth-child(4n+3) { background: #f2c230; color: #f2c230; animation-delay: .8s; }
+.x-garland span:nth-child(4n)   { background: #3fa9e0; color: #3fa9e0; animation-delay: 1.2s; }
+@keyframes x-twinkle { 0%, 100% { opacity: 1; box-shadow: 0 0 8px 2px currentColor; } 50% { opacity: .45; box-shadow: none; } }
+
+/* Calendar */
+html.xmas .c-cal { border-color: #e7d8c9; box-shadow: 0 4px 22px rgba(23,96,58,.08); }
+html.xmas .c-cal-head, html.xmas .c-month:first-child { background: linear-gradient(180deg, var(--x-green) 0%, #12502f 100%); border-bottom-color: var(--x-gold) !important; }
+html.xmas .c-cal-dayhead .dn { color: #f5e9c8; }
+html.xmas .c-cal-dayhead .dd { color: #fff; }
+html.xmas .c-cal-dayhead.today .dd { background: var(--x-red); }
+html.xmas .c-allday { background: #fbf6ee; }
+html.xmas .c-col.today { background: #fffafa; }
+html.xmas .c-month-cell.today { background: var(--x-red-soft); box-shadow: inset 0 0 0 2px var(--x-red); }
+html.xmas .c-month-cell.today .md { background: var(--x-red); }
+html.xmas .c-month-cell.other { background: #f7f3ec; }
+html.xmas .c-seg { border-color: var(--x-green); }
+html.xmas .c-seg button.on { background: var(--x-green); }
+html.xmas .c-seg button + button { border-left-color: var(--x-green); }
+
+.x-holiday { font-size: 10px; font-weight: 600; letter-spacing: .04em; color: var(--x-red, #c4162a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-cal-dayhead .x-holiday { color: #f5e9c8; margin-top: 2px; }
+html.xmas .c-month-cell.x-big { background: linear-gradient(160deg, #fdeff0 0%, #fff 60%, #edf6f0 100%); }
+html.xmas .c-month-cell.x-big .md::after { content: ' ❄'; color: var(--x-green); }
+
+/* Multi-day trips show as one bold band */
+.c-pill.trip { font-weight: 600; border-left-width: 0; color: #fff !important; background: linear-gradient(90deg, #0f766e, #17603a) !important; }
+html.xmas .c-pill.trip { background: linear-gradient(90deg, var(--x-red), #8f1020) !important; }
+.c-pill.trip .tday { opacity: .8; font-weight: 400; margin-left: 4px; }
+
+/* Snow */
+.x-snow { position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden; }
+.x-snow span { position: absolute; top: -20px; color: #b9d4e6; opacity: .7; animation: x-fall linear infinite; }
+@keyframes x-fall { from { transform: translate(0, -20px) rotate(0); } to { transform: translate(var(--drift), 105vh) rotate(240deg); } }
+@media (prefers-reduced-motion: reduce) { .x-snow { display: none; } .x-garland span { animation: none; } }

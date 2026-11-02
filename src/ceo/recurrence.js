@@ -203,7 +203,9 @@ function makeOccurrence(b, occDate, ov) {
     moved: !!(ov?.new_date || ov?.new_start),
     note: ov?.note || '',
     topic: rotationTopic(b, occDate),
-    reminders: b.reminders || [],
+    reminders: b.kind === 'date' && b.until_date && occDate !== b.start_date ? [] : b.reminders || [],   // trips: remind once
+    trip: b.kind === 'date' && b.until_date && b.until_date > b.start_date
+      ? { day: daysBetween(b.start_date, occDate) + 1, of: daysBetween(b.start_date, b.until_date) + 1 } : null,
     protected: !!b.protected,
     unconfirmed: !!b.unconfirmed,
     location: b.location,

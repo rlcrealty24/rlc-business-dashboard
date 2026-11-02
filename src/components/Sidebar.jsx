@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useCeo } from '../ceo/CeoStore.jsx'
 import { useSocial } from '../social/SocialStore.jsx'
 import { todayISO } from '../ceo/recurrence.js'
+import { useHoliday } from '../ceo/holiday.jsx'
 
 const ico = d => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{d}</svg>
@@ -100,6 +101,12 @@ function NavItem({ path, label, icon, badge, onClose, active }) {
   )
 }
 
+function HolidayToggle() {
+  const { on, mode, setMode } = useHoliday()
+  const next = { auto: on ? 'off' : 'on', on: 'off', off: 'on' }[mode]
+  return <button className="x-toggle" onClick={() => setMode(next)}>{on ? '🎄 Holiday theme on' : '🎄 Turn on holiday theme'}</button>
+}
+
 export default function Sidebar({ open = true, onClose = () => {} }) {
   const [photo, setPhoto] = useState(() => localStorage.getItem('profile_photo') || null)
   const fileRef = useRef(null)
@@ -163,6 +170,7 @@ export default function Sidebar({ open = true, onClose = () => {} }) {
       <div className="rlc-side-foot">
         <span>Leadership in every deal.</span>
         <span>Loyalty in every move.</span>
+        <HolidayToggle />
       </div>
     </aside>
   )

@@ -8,9 +8,12 @@ import QuickCapture from '../ceo/QuickCapture.jsx'
 import ReminderWatcher from '../ceo/ReminderWatcher.jsx'
 import { Toaster } from '../ceo/ui.jsx'
 import '../ceo/ceo.css'
+import '../ceo/holiday.css'
+import { Snow, useHoliday } from '../ceo/holiday.jsx'
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
+  const { on: xmas } = useHoliday()
 
   useEffect(() => {
     bulkSync()
@@ -48,6 +51,7 @@ export default function Layout() {
 
         <Outlet />
       </main>
+      {xmas && <Snow />}
       <QuickCapture />
       <ReminderWatcher />
       <Toaster />
