@@ -756,7 +756,7 @@ function Transactions({ f, txns, scope, months, catNames }) {
           {rows.slice(0, limit).map(t => (
             <tr key={t.id}>
               <td className="text-sm fa-date" style={{ whiteSpace: 'nowrap' }}>{fmtDay(t.date)}</td>
-              <td className="text-sm fa-main">{t.counterparty || t.merchant}<FlagMenu t={t} f={f} />{t.deal_ref && <div className="text-xs" style={{ color: '#4338ca' }}>{t.deal_ref}</div>}{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}{t.notes && <div className="text-xs text-muted">{t.notes}</div>}</td>
+              <td className="text-sm fa-main">{t.counterparty || t.merchant}<FlagMenu t={t} f={f} />{t.deal_ref && <div className="text-xs" style={{ color: '#4338ca' }}>{t.deal_ref}</div>}{t.status === 'review' && <span className="badge" style={{ marginLeft: 6, background: 'var(--amber-bg, #fffbeb)', color: '#b45309' }}>review</span>}{recIds.has(t.id) && <span className="badge badge-gray" style={{ marginLeft: 6 }}>recurring</span>}<TxnNote t={t} f={f} /></td>
               <td className="text-xs text-muted fa-acct">{acct[t.account_id]}</td>
               <td className="fa-kind"><select value={t.kind} onChange={e => f.updateTxns([t.id], { kind: e.target.value })} style={sel}>{KINDS.map(k => <option key={k} value={k}>{KIND_LABELS[k]}</option>)}</select></td>
               <td className="fa-cat"><select value={t.category || ''} onChange={e => f.updateTxns([t.id], { category: e.target.value || null, status: 'ok', review_reason: null })} style={sel}><option value="">—</option>{catNames.map(c => <option key={c}>{c}</option>)}</select></td>
@@ -769,6 +769,25 @@ function Transactions({ f, txns, scope, months, catNames }) {
       {rows.length > limit && <div className="card-body"><button className="btn btn-sm" onClick={() => setLimit(l => l + 300)}>Show more ({rows.length - limit} left)</button></div>}
     </div>
   )
+}
+
+/** Note on a Transactions row: tap to add or edit, saves on Enter or when you click away */
+function TxnNote({ t, f }) {
+  const [editing, setEditing] = useState(false)
+  const [v, setV] = useState(t.notes || '')
+  const save = async () => {
+    setEditing(false)
+    const next = v.trim()
+    if (next !== (t.notes || '')) await f.updateTxns([t.id], { notes: next || null })
+  }
+  if (editing) return (
+    <div><input autoFocus value={v} placeholder="note" onChange={e => setV(e.target.value)} onBlur={save}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { setV(t.notes || ''); setEditing(false) } }}
+      style={{ fontSize: '0.75rem', padding: '3px 6px', width: '100%', maxWidth: 220, marginTop: 3 }} /></div>
+  )
+  return t.notes
+    ? <div className="text-xs text-muted" role="button" title="Edit note" onClick={() => { setV(t.notes || ''); setEditing(true) }} style={{ cursor: 'pointer' }}>{t.notes} ✎</div>
+    : <div><button type="button" className="btn btn-sm" style={{ padding: '1px 6px', fontSize: '0.68rem', marginTop: 3 }} onClick={() => { setV(''); setEditing(true) }}>+ Note</button></div>
 }
 
 // ─── Budgets & goals ─────────────────────────────────────────────────────────
