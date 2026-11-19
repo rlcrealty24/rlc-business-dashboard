@@ -465,7 +465,10 @@ function ruleText(t) {
 }
 
 const CLOSED_KEY = '__fin_review_closed'   // which Review sections you minimized — remembered on this device
-function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm }) {
+function Review({ f, txns: monthTxns, total, month, months, setMonth, catNames, agents, crm }) {
+  const [account, setAccount] = useState('')
+  const perAcct = useMemo(() => { const c = {}; for (const t of monthTxns) c[t.account_id] = (c[t.account_id] || 0) + 1; return c }, [monthTxns])
+  const txns = account ? monthTxns.filter(t => t.account_id === account) : monthTxns
   const [closed, setClosed] = useState(() => { try { return JSON.parse(localStorage.getItem(CLOSED_KEY)) || [] } catch { return [] } })
   const save = next => { setClosed(next); try { localStorage.setItem(CLOSED_KEY, JSON.stringify(next)) } catch {} }
   const toggle = reason => save(closed.includes(reason) ? closed.filter(r => r !== reason) : [...closed, reason])
@@ -477,19 +480,24 @@ function Review({ f, txns, total, month, months, setMonth, catNames, agents, crm
   }, [txns])
   const monthBar = (
     <div className="card"><div className="card-body" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-      <span className="text-sm" style={{ fontWeight: 600 }}>{month ? `${monthName(month, true)}: ${txns.length} to review` : `All months: ${total} to review`}</span>
+      <span className="text-sm" style={{ fontWeight: 600 }}>{month ? monthName(month, true) : 'All months'}{account ? ` · ${acct[account]?.name || ''}` : ''}: {txns.length} to review</span>
       <select value={month || ''} onChange={e => setMonth(e.target.value || null)} style={{ width: 'auto', fontSize: '0.8rem', padding: '4px 8px' }}>
         <option value="">All months</option>
         {[...months].reverse().map(m => <option key={m} value={m}>{monthName(m, true)}</option>)}
       </select>
+      <select value={account} onChange={e => setAccount(e.target.value)} style={{ width: 'auto', fontSize: '0.8rem', padding: '4px 8px' }}>
+        <option value="">All accounts ({monthTxns.length})</option>
+        {f.accounts.filter(a => !a.excluded).map(a => <option key={a.id} value={a.id}>{a.name} ({perAcct[a.id] || 0})</option>)}
+      </select>
       {month && <button className="btn btn-sm" onClick={() => setMonth(null)}>Show all months ({total})</button>}
+      {account && <button className="btn btn-sm" onClick={() => setAccount('')}>All accounts</button>}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
         <button className="btn btn-sm" onClick={() => save(groups.map(([r]) => r))}>▸ Collapse all</button>
         <button className="btn btn-sm" onClick={() => save([])}>▾ Expand all</button>
       </span>
     </div></div>
   )
-  if (!txns.length) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{monthBar}<div className="card"><div className="card-body">{month ? `Nothing left to review in ${monthName(month, true)}. 🎉` : 'Nothing waiting — every transaction is categorized. 🎉'}</div></div></div>
+  if (!txns.length) return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{monthBar}<div className="card"><div className="card-body">{month || account ? `Nothing left to review here${month ? ` in ${monthName(month, true)}` : ''}${account ? ` for ${acct[account]?.name || 'this account'}` : ''}. 🎉` : 'Nothing waiting — every transaction is categorized. 🎉'}</div></div></div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <datalist id="fin-agents">{agents.map(n => <option key={n} value={n} />)}</datalist>
